@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ordo Operum</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <h1>Ordo Operum</h1>
+    <nav class="tabs" aria-label="Views">
+      <a href="#priority" data-view="priority">Priority</a>
+      <a href="#week" data-view="week" id="week-tab">Week</a>
+    </nav>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Status" data-filter="status">
+        <button data-value="open" aria-pressed="true">Open</button>
+        <button data-value="closed">Closed</button>
+        <button data-value="all">All</button>
+      </div>
+      <div class="seg" role="group" aria-label="Tier" data-filter="tier">
+        <button data-value="all" aria-pressed="true">All tiers</button>
+        <button data-value="business">Business</button>
+        <button data-value="personal">Personal</button>
+      </div>
+    </div>
+    <div class="week-nav" id="week-nav" hidden>
+      <button id="week-prev" aria-label="Previous week">‹</button>
+      <div class="week-label">
+        <strong id="week-title"></strong>
+        <span id="week-range"></span>
+      </div>
+      <button id="week-next" aria-label="Next week">›</button>
+      <button id="week-today" class="link">Back to this week</button>
+    </div>
+    <p id="summary" class="summary"></p>
+  </header>
+  <main id="board"></main>
+  <script src="app.js"></script>
+</body>
+</html>

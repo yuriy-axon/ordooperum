@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 scripts/validate.py)",
+      "Bash(python3 scripts/validate.py --next-id)",
+      "Bash(date -Iseconds)",
+      "Bash(date +%G-W%V)",
+      "Bash(date +%F)",
+      "Bash(python3 scripts/list_tasks.py:*)",
+      "Bash(python3 scripts/plan.py:*)",
+      "Bash(python3 scripts/update_task.py:*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/validate.py\" --hook"
+          }
+        ]
+      }
+    ]
+  }
+}
