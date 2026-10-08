@@ -2,6 +2,30 @@
 
 Shared by all agents and, in Phase 2, the apps. Enforced by `scripts/validate.py`. Change both together.
 
+## Profile
+
+`data/profile.md` — facts about the user that every agent uses for enrichment (nearby places, opening hours, local prices). Agents read it; only change it when the user asks.
+
+```markdown
+---
+location: Omegna, Piedmont, Italy
+timezone: Europe/Rome
+currency: EUR
+updated: 2026-10-08T17:11:56+02:00
+---
+
+## Context
+
+- Other facts useful for enrichment.
+```
+
+| Field | Values |
+|-------|--------|
+| `location` | City, region, country — never a street address |
+| `timezone` | IANA name, e.g. `Europe/Rome` |
+| `currency` | 3-letter code prices are shown in, e.g. `EUR` |
+| `updated` | ISO 8601 timestamp with time zone |
+
 ## Tiers
 
 Fixed: `business` (work, clients, companies, products) and `personal` (home, family, health, finances, travel, learning).
@@ -93,7 +117,11 @@ Renew the car insurance before it expires at the end of October. Compare at leas
 Body sections, all required, in this order:
 
 - **Description** — polished English: what to do, why, who is involved, what "done" looks like.
-- **Additional information** — bullets starting `Project:` (from the project's Context) or `Research:` (from the internet, always with a source link and retrieval date). `None.` if empty.
+- **Additional information** — bullets, each starting with its kind. `None.` if empty.
+  - `Project:` — from the project's Context.
+  - `Place:` — where to go or whom to contact: name, address, opening hours, phone or booking link. Source link and retrieval date.
+  - `Price:` — what it costs: amount in the profile currency (and the original currency if different), from where. Source link and retrieval date.
+  - `Research:` — any other fact from the internet, with source link and retrieval date.
 - **Original input** — the user's words, verbatim, as a quote. When a task is updated from a later input, the new fragment is appended.
 
 ## Status
@@ -112,6 +140,71 @@ Used by the week view and by planning agents:
 1. A closed task belongs to the week of its `closed` date.
 2. An open task belongs to its `week`; if that is `null`, to the week of its `due` date; if both are `null`, it is unscheduled.
 3. An open task whose week is already over is carried over into the current week (and `/plan` moves it forward).
+
+## Meetings
+
+A meeting plan prepared by `/meeting`. File: `data/meetings/<date>-<slug>.md` (`undated-<slug>.md` when there is no date yet); `id` is the file name without `.md`.
+
+```markdown
+---
+id: 2026-10-09-sales-q4-pipeline
+title: Q4 pipeline review with the sales team
+audience: Sales team
+date: 2026-10-09
+duration: 45
+tier: business
+project: axon-sales
+status: planned
+created: 2026-10-07T10:00:00+02:00
+updated: 2026-10-07T10:00:00+02:00
+---
+
+## Goal
+
+Agree on the three deals to push before year end and who owns each.
+
+## Agenda
+
+### 1. Pipeline status — P1 · 15 min
+
+Where each Q4 deal stands and what blocks it.
+
+- **Key points:** …
+- **Supporting material:** …
+- **Likely questions:** …
+- **Outcome wanted:** …
+
+### 2. … — P2 · 10 min
+
+## Preparation
+
+- Things to prepare, check or bring before the meeting. `None.` if nothing.
+
+## Original brief
+
+> the user's words, verbatim
+```
+
+| Field | Values |
+|-------|--------|
+| `title` | ≤ 80 characters |
+| `audience` | Who attends, as the user describes it (e.g. `Sales team`, `Management team`) |
+| `date` | `YYYY-MM-DD` or `null` |
+| `duration` | Minutes, or `null` if unknown |
+| `tier` | `business` or `personal` |
+| `project` | ID of an existing project, or `null` if the meeting isn't tied to one |
+| `status` | `planned`, `done` or `cancelled` |
+| `created`, `updated` | ISO 8601 timestamps with time zone |
+
+Agenda items are `### <n>. <title> — <priority> · <minutes> min` (minutes optional), in discussion order, with agenda priorities:
+
+| Value | Meaning |
+|-------|---------|
+| `P1` | Must cover — the meeting fails without it |
+| `P2` | Should cover |
+| `P3` | If time allows |
+
+The app and agents never show the Original brief; it is kept for reference only.
 
 ## Priority
 

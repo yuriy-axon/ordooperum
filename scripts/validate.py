@@ -16,6 +16,9 @@ ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
 TASKS = DATA / "tasks"
 PROJECTS = DATA / "projects"
+MEETINGS = DATA / "meetings"
+PROFILE = DATA / "profile.md"
+PROFILE_FIELDS = ["location", "timezone", "currency", "updated"]
 
 TIERS = {"business", "personal"}
 PRIORITIES = {"P1", "P2", "P3", "P4", "P5"}
@@ -29,6 +32,10 @@ TASK_FIELDS = ["id", "title", "tier", "project", "priority", "status", "due", "w
 PROJECT_FIELDS = ["id", "name", "tier", "status", "created"]
 TASK_SECTIONS = ["Description", "Additional information", "Original input"]
 PROJECT_SECTIONS = ["Description", "Context"]
+MEETING_FIELDS = ["id", "title", "audience", "date", "duration", "tier", "project", "status", "created", "updated"]
+MEETING_SECTIONS = ["Goal", "Agenda", "Preparation", "Original brief"]
+MEETING_STATUSES = {"planned", "done", "cancelled"}
+AGENDA_ITEM = re.compile(r"^### \d+\. .+ — (P1|P2|P3)(?: · \d+ min)?$")
 
 TASK_ID = re.compile(r"^T-\d{4}$")
 ISO_WEEK = re.compile(r"^\d{4}-W(0[1-9]|[1-4]\d|5[0-3])$")
@@ -171,9 +178,74 @@ def check_tasks(projects, errors):
     return ids
 
 
+def check_meetings(projects, errors):
+    for path in sorted(MEETINGS.glob("*.md")):
+        where = path.relative_to(ROOT)
+        try:
+            meta, body = parse(path)
+        except ValueError as e:
+            errors.append(f"{where}: {e}")
+            continue
+        check_fields(meta, MEETING_FIELDS, errors, where)
+        check_sections(body, MEETING_SECTIONS, errors, where)
+        if meta.get("id") != path.stem:
+            errors.append(f"{where}: id must match the file name '{path.stem}'")
+        if not re.match(r"^(\d{4}-\d{2}-\d{2}|undated)-[a-z0-9]+(-[a-z0-9]+)*$", path.stem):
+            errors.append(f"{where}: file name must be '<YYYY-MM-DD or undated>-<slug>.md'")
+        mdate = meta.get("date")
+        if mdate != "null":
+            try:
+                date.fromisoformat(mdate or "")
+            except ValueError:
+                errors.append(f"{where}: date must be YYYY-MM-DD or null")
+        if meta.get("duration") != "null" and not (meta.get("duration") or "").isdigit():
+            errors.append(f"{where}: duration must be minutes (a number) or null")
+        tier, project = meta.get("tier"), meta.get("project")
+        if tier not in TIERS:
+            errors.append(f"{where}: tier must be one of {sorted(TIERS)}")
+        if project != "null":
+            if project not in projects:
+                errors.append(f"{where}: project '{project}' does not exist in data/projects/")
+            elif projects[project] != tier:
+                errors.append(f"{where}: tier '{tier}' does not match project's tier '{projects[project]}'")
+        if meta.get("status") not in MEETING_STATUSES:
+            errors.append(f"{where}: status must be one of {sorted(MEETING_STATUSES)}")
+        for field in ("created", "updated"):
+            if field in meta and not is_timestamp(meta[field]):
+                errors.append(f"{where}: {field} must be an ISO 8601 timestamp with time zone")
+        agenda = re.search(r"^## Agenda\s*\n(.*?)(?=^## |\Z)", body, flags=re.M | re.S)
+        items = re.findall(r"^### .*$", agenda.group(1), flags=re.M) if agenda else []
+        if agenda and not items:
+            errors.append(f"{where}: Agenda needs at least one item ('### 1. Title — P1 · 10 min')")
+        for item in items:
+            if not AGENDA_ITEM.match(item):
+                errors.append(f"{where}: agenda item must look like '### 1. Title — P1 · 10 min', found '{item}'")
+
+
+def check_profile(errors):
+    where = PROFILE.relative_to(ROOT)
+    if not PROFILE.exists():
+        errors.append(f"{where}: missing")
+        return
+    try:
+        meta, body = parse(PROFILE)
+    except ValueError as e:
+        errors.append(f"{where}: {e}")
+        return
+    check_fields(meta, PROFILE_FIELDS, errors, where)
+    check_sections(body, ["Context"], errors, where)
+    if not re.match(r"^[A-Z]{3}$", meta.get("currency", "")):
+        errors.append(f"{where}: currency must be a 3-letter code like EUR")
+    if "updated" in meta and not is_timestamp(meta["updated"]):
+        errors.append(f"{where}: updated must be an ISO 8601 timestamp with time zone")
+
+
 def collect_errors():
     errors = []
-    check_tasks(load_projects(errors), errors)
+    check_profile(errors)
+    projects = load_projects(errors)
+    check_tasks(projects, errors)
+    check_meetings(projects, errors)
     return errors
 
 

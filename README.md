@@ -10,6 +10,7 @@ Personal task-management system. Phase 1: AI agents in Claude Code. Phase 2: web
 | `list [open\|closed\|all]` or `/list …` | Shows your tasks; open by default |
 | `/task <change>` | Changes existing tasks: done, cancelled, reopened, priority, due date, week, project, text |
 | `/plan` | Plans open tasks into weeks; runs automatically every Sunday for the next week |
+| `/meeting <brief>` | Prepares a meeting: goal, prioritized agenda, talking points, supporting material, likely questions |
 
 ## Web app
 
@@ -32,9 +33,11 @@ CLAUDE.md                      rules every agent follows
 .claude/settings.json          auto-validation hook
 docs/vision.md                 what we're building
 docs/data-model.md             format of tasks and projects (single source of truth)
+data/profile.md                your location, time zone, currency
 data/tasks/                    tasks
 data/projects/business/        business projects
 data/projects/personal/        personal projects
+data/meetings/                 meeting plans
 scripts/validate.py            checks data/ against the data model
 scripts/list_tasks.py          prints tasks as a table
 scripts/update_task.py         changes a task's status, priority, due, week, project

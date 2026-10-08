@@ -5,9 +5,11 @@ A personal task-management system. Phase 1: AI agents (Claude Code skills) that 
 ## Layout
 
 - `.claude/skills/<agent>/SKILL.md` — one folder per agent. Agent-specific rules live only there.
-- `docs/data-model.md` — the single source of truth for tasks, tiers, projects and priorities (imported below).
+- `docs/data-model.md` — the single source of truth for tasks, tiers, projects, meetings and priorities (imported below).
+- `data/profile.md` — the user's location, time zone and currency; every agent uses it for enrichment.
 - `data/tasks/` — tasks, one Markdown file each.
 - `data/projects/business/`, `data/projects/personal/` — projects, one Markdown file each.
+- `data/meetings/` — meeting plans made by `/meeting`, one Markdown file each.
 - `scripts/validate.py` — checks every file in `data/` against the data model. Runs automatically after each edit (hook in `.claude/settings.json`).
 - `scripts/list_tasks.py` — prints tasks as a table: `open` (default), `closed` or `all`.
 - `scripts/update_task.py` — the only way to change a task's status, priority, due, week or project (used by `/task` and the web app).
