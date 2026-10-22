@@ -21,25 +21,50 @@ PROFILE = DATA / "profile.md"
 PROFILE_FIELDS = ["location", "timezone", "currency", "updated"]
 
 TIERS = {"business", "personal"}
-PRIORITIES = {"P1", "P2", "P3", "P4", "P5"}
+PRIORITIES = {"P1", "P2", "P3", "P4"}
 OPEN_STATUSES = {"new", "in-progress"}
 CLOSED_STATUSES = {"done", "cancelled"}
 TASK_STATUSES = OPEN_STATUSES | CLOSED_STATUSES
 PROJECT_STATUSES = {"active", "archived"}
 SOURCES = {"text", "audio"}
+REPEATS = {"weekly", "null"}
 
-TASK_FIELDS = ["id", "title", "tier", "project", "priority", "status", "due", "week", "pinned", "created", "updated", "closed", "source"]
+TASK_FIELDS = ["id", "title", "tier", "project", "priority", "status", "due", "week", "pinned", "weeks", "repeat", "repeat_until",
+              "series", "created", "updated", "closed", "source"]
 PROJECT_FIELDS = ["id", "name", "tier", "status", "created"]
 TASK_SECTIONS = ["Description", "Additional information", "Original input"]
 PROJECT_SECTIONS = ["Description", "Context"]
-MEETING_FIELDS = ["id", "title", "audience", "date", "duration", "tier", "project", "status", "created", "updated"]
-MEETING_SECTIONS = ["Goal", "Agenda", "Preparation", "Original brief"]
+MEETING_FIELDS = ["id", "name", "title", "audience", "date", "time", "duration", "tier", "project", "tasks", "status", "created", "updated"]
+MEETING_SECTIONS = ["Goal", "Agenda", "Preparation", "Protocol", "Original input"]
+PROTOCOL_PARTS = ["Decisions", "Action items", "Open points"]
 MEETING_STATUSES = {"planned", "done", "cancelled"}
 AGENDA_ITEM = re.compile(r"^### \d+\. .+ — (P1|P2|P3)(?: · \d+ min)?$")
 
 TASK_ID = re.compile(r"^T-\d{4}$")
 ISO_WEEK = re.compile(r"^\d{4}-W(0[1-9]|[1-4]\d|5[0-3])$")
 SLUG = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+def slugify(text):
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+
+
+def parse_list(value, item):
+    """'[a, b]' -> ['a', 'b'] if every entry matches the `item` regex; None if malformed."""
+    if not (value or "").startswith("[") or not value.endswith("]"):
+        return None
+    items = [w.strip() for w in value[1:-1].split(",") if w.strip()]
+    return items if all(item.match(w) for w in items) else None
+
+
+def parse_weeks(value):
+    """'[2026-W40, 2026-W41]' -> ['2026-W40', '2026-W41']; None if malformed."""
+    return parse_list(value, ISO_WEEK)
+
+
+def format_weeks(weeks):
+    return "[" + ", ".join(weeks) + "]"
 
 
 def parse(path):
@@ -118,6 +143,8 @@ def load_projects(errors):
 
 def check_tasks(projects, errors):
     ids = {}
+    instances = []  # (file, series ID, week) of weekly instances
+    repeating = set()
     for path in sorted(TASKS.glob("*.md")):
         where = path.relative_to(ROOT)
         try:
@@ -145,7 +172,7 @@ def check_tasks(projects, errors):
         elif projects[project] != tier:
             errors.append(f"{where}: tier '{tier}' does not match project's tier '{projects[project]}'")
         if meta.get("priority") not in PRIORITIES:
-            errors.append(f"{where}: priority must be P1-P5")
+            errors.append(f"{where}: priority must be P1-P4")
         if meta.get("status") not in TASK_STATUSES:
             errors.append(f"{where}: status must be one of {sorted(TASK_STATUSES)}")
         if meta.get("source") not in SOURCES:
@@ -164,6 +191,37 @@ def check_tasks(projects, errors):
             errors.append(f"{where}: pinned must be true or false")
         elif pinned == "true" and (not week or week == "null"):
             errors.append(f"{where}: a pinned task must have a week")
+        weeks = parse_weeks(meta.get("weeks"))
+        if weeks is None:
+            errors.append(f"{where}: weeks must be a list like [2026-W40, 2026-W41] or []")
+        elif any(a == b for a, b in zip(weeks, weeks[1:])):
+            errors.append(f"{where}: weeks must not repeat the same week twice in a row")
+        elif week and week != "null" and (not weeks or weeks[-1] != week):
+            errors.append(f"{where}: the last entry of weeks must equal week ({week})")
+        repeat, until = meta.get("repeat"), meta.get("repeat_until")
+        if repeat == "weekly":
+            repeating.add(tid)
+        if repeat not in REPEATS:
+            errors.append(f"{where}: repeat must be one of {sorted(REPEATS)}")
+        series = meta.get("series")
+        if repeat == "weekly":
+            try:
+                date.fromisoformat(until or "")
+            except ValueError:
+                errors.append(f"{where}: repeat_until must be YYYY-MM-DD for a weekly series")
+            if (week, pinned, meta.get("weeks"), due, series) != ("null", "false", "[]", "null", "null"):
+                errors.append(f"{where}: a weekly series must have week: null, pinned: false, weeks: [], due: null, series: null")
+        elif until != "null":
+            errors.append(f"{where}: repeat_until must be null when repeat is null")
+        if series != "null":
+            if not TASK_ID.match(series or ""):
+                errors.append(f"{where}: series must be a task ID like T-0013 or null")
+            elif not week or week == "null" or not weeks:
+                errors.append(f"{where}: a weekly instance must have a week")
+            elif weeks != [week] or pinned != "true":
+                errors.append(f"{where}: a weekly instance is never carried over: it must have pinned: true and weeks: [{week}]")
+            else:
+                instances.append((where, series, weeks[0]))  # the week it was created for
         closed = meta.get("closed")
         is_closed = meta.get("status") in CLOSED_STATUSES
         if is_closed and (not closed or closed == "null"):
@@ -175,10 +233,18 @@ def check_tasks(projects, errors):
         for field in ("created", "updated"):
             if field in meta and not is_timestamp(meta[field]):
                 errors.append(f"{where}: {field} must be an ISO 8601 timestamp with time zone")
+    seen = {}
+    for where, series, week in instances:
+        if series not in repeating:
+            errors.append(f"{where}: series {series} is not an existing weekly series")
+        if (series, week) in seen:
+            errors.append(f"{where}: {series} already has an instance for {week} ({seen[(series, week)]})")
+        seen[(series, week)] = where
     return ids
 
 
-def check_meetings(projects, errors):
+def check_meetings(projects, task_ids, errors):
+    seen = {}
     for path in sorted(MEETINGS.glob("*.md")):
         where = path.relative_to(ROOT)
         try:
@@ -190,14 +256,23 @@ def check_meetings(projects, errors):
         check_sections(body, MEETING_SECTIONS, errors, where)
         if meta.get("id") != path.stem:
             errors.append(f"{where}: id must match the file name '{path.stem}'")
-        if not re.match(r"^(\d{4}-\d{2}-\d{2}|undated)-[a-z0-9]+(-[a-z0-9]+)*$", path.stem):
-            errors.append(f"{where}: file name must be '<YYYY-MM-DD or undated>-<slug>.md'")
-        mdate = meta.get("date")
-        if mdate != "null":
-            try:
-                date.fromisoformat(mdate or "")
-            except ValueError:
-                errors.append(f"{where}: date must be YYYY-MM-DD or null")
+        name, mdate, mtime = meta.get("name") or "null", meta.get("date"), meta.get("time")
+        if name == "null" or not slugify(name):
+            errors.append(f"{where}: name is required")
+        try:
+            date.fromisoformat(mdate or "")
+        except ValueError:
+            errors.append(f"{where}: date is required, as YYYY-MM-DD")
+        if mtime != "null" and not TIME.match(mtime or ""):
+            errors.append(f"{where}: time must be HH:MM (24-hour) or null")
+        short = f"{mdate}-{slugify(name)}"
+        timed = f"{mdate}-{(mtime or '').replace(':', '')}-{slugify(name)}" if TIME.match(mtime or "") else None
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", mdate or "") and path.stem not in (short, timed):
+            errors.append(f"{where}: file name must be '{short}.md'" + (f" (or '{timed}.md')" if timed else ""))
+        key = (mdate, slugify(name), mtime)
+        if key in seen:
+            errors.append(f"{where}: same date, name and time as {seen[key]}; add to that meeting instead")
+        seen[key] = where
         if meta.get("duration") != "null" and not (meta.get("duration") or "").isdigit():
             errors.append(f"{where}: duration must be minutes (a number) or null")
         tier, project = meta.get("tier"), meta.get("project")
@@ -210,6 +285,24 @@ def check_meetings(projects, errors):
                 errors.append(f"{where}: tier '{tier}' does not match project's tier '{projects[project]}'")
         if meta.get("status") not in MEETING_STATUSES:
             errors.append(f"{where}: status must be one of {sorted(MEETING_STATUSES)}")
+        linked = parse_list(meta.get("tasks"), TASK_ID)
+        if linked is None:
+            errors.append(f"{where}: tasks must be a list like [T-0002, T-0006] or []")
+        else:
+            for tid in linked:
+                if tid not in task_ids:
+                    errors.append(f"{where}: linked task {tid} does not exist")
+            text = re.split(r"^## Original input\s*$", body, flags=re.M)[0]
+            for tid in sorted(set(re.findall(r"\bT-\d{4}\b", text)) - set(linked)):
+                errors.append(f"{where}: {tid} is mentioned but missing from tasks")
+        protocol = re.search(r"^## Protocol\s*\n(.*?)(?=^## |\Z)", body, flags=re.M | re.S)
+        protocol = protocol.group(1).strip() if protocol else ""
+        if meta.get("status") == "planned" and protocol and protocol != "None yet.":
+            errors.append(f"{where}: Protocol must be 'None yet.' while the meeting is planned")
+        if meta.get("status") == "done":
+            parts = re.findall(r"^### (.+?)\s*$", protocol, flags=re.M)
+            if parts != PROTOCOL_PARTS:
+                errors.append(f"{where}: Protocol of a done meeting needs subsections {PROTOCOL_PARTS}, found {parts}")
         for field in ("created", "updated"):
             if field in meta and not is_timestamp(meta[field]):
                 errors.append(f"{where}: {field} must be an ISO 8601 timestamp with time zone")
@@ -244,8 +337,8 @@ def collect_errors():
     errors = []
     check_profile(errors)
     projects = load_projects(errors)
-    check_tasks(projects, errors)
-    check_meetings(projects, errors)
+    task_ids = check_tasks(projects, errors)
+    check_meetings(projects, task_ids, errors)
     return errors
 
 

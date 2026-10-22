@@ -9,15 +9,20 @@ Usage:
   python3 scripts/plan.py --today 2026-10-11   pretend today is another date (for testing)
 
 The target week is next week when run on a Sunday, otherwise the current week.
+Weekly series are never planned themselves: --apply creates each one's instance for the target week
+(scripts/weekly.py) and closes a series whose repeat_until is over. Weekly instances keep their own week:
+they are never moved or carried over.
 """
 import argparse
 import re
 import sys
 from datetime import date, datetime, timedelta
 
-from validate import ISO_WEEK, OPEN_STATUSES, TASKS, parse
+from validate import ISO_WEEK, OPEN_STATUSES, TASKS, format_weeks, parse, parse_weeks
+from update_task import update
+from weekly import create_instance
 
-PRIORITY_ORDER = ["P1", "P2", "P3", "P4", "P5"]
+PRIORITY_ORDER = ["P1", "P2", "P3", "P4"]
 SPREAD = {"P3": 4, "P4": 13}  # number of weeks, starting at the target week, to spread over
 
 
@@ -71,7 +76,9 @@ def plan(tasks, target, pins, unpins):
 
     for t in tasks:
         due_week = week_of(date.fromisoformat(t["due"])) if t["due"] else None
-        if t["priority"] == "P1":
+        if t.get("status") == "in-progress":
+            set_week(t, target, True, f"In progress: continues in {label(target)}")
+        elif t["priority"] == "P1":
             set_week(t, target, True, "Critical: always pinned to the planning week")
         elif t["week"] and t["week"] < target:
             set_week(t, target, t["pinned"], f"Not done in {label(t['week'])}, moved forward")
@@ -92,16 +99,12 @@ def plan(tasks, target, pins, unpins):
         p = t["priority"]
         if p == "P2":
             week, reason = target, "High priority"
-        elif p in SPREAD:
+        else:  # P3, P4
             weeks = [shift(target, i) for i in range(SPREAD[p])]
             if due_week:
                 weeks = [w for w in weeks if w <= due_week] or [target]
             week = min(weeks, key=lambda w: (load.get(w, 0), w))
             reason = f"{p}: least busy week{' before the due date' if due_week else ''}"
-        elif due_week:  # P5 with a due date
-            week, reason = max(due_week, target), f"Due {t['due']}"
-        else:
-            continue  # P5 without a due date stays unplanned
         if due_week and week > due_week:
             week = max(due_week, target)
         load[week] = load.get(week, 0) + 1
@@ -111,7 +114,11 @@ def plan(tasks, target, pins, unpins):
 
 def write(t, week, pinned, now):
     text = t["path"].read_text(encoding="utf-8")
-    for field, value in (("week", week or "null"), ("pinned", "true" if pinned else "false"), ("updated", now)):
+    weeks = parse_weeks(t.get("weeks")) or []
+    if week and weeks[-1:] != [week]:
+        weeks.append(week)  # history of every week the task was planned for
+    for field, value in (("week", week or "null"), ("pinned", "true" if pinned else "false"),
+                         ("weeks", format_weeks(weeks)), ("updated", now)):
         text, n = re.subn(rf"^{field}: .*$", f"{field}: {value}", text, count=1, flags=re.M)
         if n != 1:
             raise SystemExit(f"{t['path'].name}: field '{field}' not found")
@@ -138,7 +145,10 @@ def main():
             raise SystemExit(f"Can't pin {tid} to {label(week)}: that week is already over")
         pins[tid] = week
 
-    tasks = load_open_tasks()
+    all_open = load_open_tasks()
+    series = [t for t in all_open if t.get("repeat") == "weekly"]  # never planned themselves
+    # Weekly instances stay in their own week; the next week has its own instance.
+    tasks = [t for t in all_open if t.get("repeat") != "weekly" and null(t.get("series")) is None]
     known = {t["id"] for t in tasks}
     for tid in list(pins) + args.unpin:
         if tid not in known:
@@ -162,14 +172,30 @@ def main():
     print(f"\n{label(target)} has {len(in_target)} task{'s' if len(in_target) != 1 else ''}.")
     unplanned = [t for t in tasks if not t["week"]]
     if unplanned:
-        print(f"{len(unplanned)} open task{'s' if len(unplanned) != 1 else ''} left unplanned (P5 without a due date).")
+        print(f"{len(unplanned)} open task{'s' if len(unplanned) != 1 else ''} left unplanned.")
 
-    if args.apply and changes:
+    # Weekly series: one instance for the planning week; a series past its repeat_until is done.
+    weekly = []
+    for s in series:
+        if date.fromisoformat(s["repeat_until"]) < date.fromisocalendar(*map(int, target.split("-W")), 1):
+            weekly.append((s, None, f"{s['id']} {s['title']}: series ended {s['repeat_until']}, will be closed as done"))
+        else:
+            weekly.append((s, target, f"{s['id']} {s['title']}: instance for {label(target)}"))
+    for _, _, line in weekly:
+        print(f"- {line}")
+
+    if args.apply and (changes or weekly):
         now = datetime.now().astimezone().isoformat(timespec="seconds")
         for tid, (week, pinned, _) in changes.items():
             write(by_id[tid], week, pinned, now)
+        for s, week, _ in weekly:
+            if week:
+                tid, path, created = create_instance(s["id"], week)
+                print(f"{tid} {'created' if created else 'already exists'} ({s['title']}, {label(week)})")
+            else:
+                update(s["id"], status="done")
         print("\nSaved.")
-    elif changes:
+    elif changes or weekly:
         print("\nDry run: nothing saved. Add --apply to save.")
     return 0
 

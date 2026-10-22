@@ -1,6 +1,6 @@
 ---
 name: new-task
-description: Capture tasks from free-form text, dictated audio, or emails and messages from other people, in any language (Polish, Russian, Ukrainian, …). Detects every task, polishes it into English, assigns tier and project, blocks duplicates, enriches it with project context and internet research, and saves it to data/tasks/. Use when the user runs /new-task, asks to add, capture or record tasks, or pastes an email or message and asks what to do with it.
+description: Capture tasks from free-form text, dictated audio, or emails and messages from other people, in any language (Polish, Russian, Ukrainian, …). Detects every task, polishes it into English, assigns tier and project, blocks duplicates, enriches it with project context and internet research, and saves it to data/tasks/. Use when the user runs /nt, asks to add, capture or record tasks, or pastes an email or message and asks what to do with it.
 ---
 
 # New Task
@@ -9,7 +9,7 @@ Turn the user's input into complete, polished tasks in `data/tasks/`, so later a
 
 ## Input
 
-The text after `/new-task`. If there is none, ask the user to paste or dictate it, and wait.
+The text after `/nt`. If there is none, ask the user to paste or dictate it, and wait.
 `source` is `audio` if the user says it was dictated or it reads like a raw transcript (no punctuation, filler words); otherwise `text`.
 
 The input can be in any language, and it can be either:
@@ -36,10 +36,12 @@ The input can be in any language, and it can be either:
    - **Priority** from the wording; `P3` when there is no signal:
      - `P1` — "ASAP", "urgent", "critical", something broken, people blocked, serious consequences. Use sparingly.
      - `P2` — a deadline within days, "important", "soon".
-     - `P4` — "no rush", "sometime this year".
-     - `P5` — "someday", "would be nice", "if I ever have time".
+     - `P4` — "no rush", "sometime this year", "someday", "would be nice", "if I ever have time".
    - **Due** only if stated or clearly implied, in any language ("do piątku", "до пятницы", "до кінця місяця"). Resolve relative dates against the message's own date if it shows one, otherwise against today.
-   - **Week** only if the input says when to do it ("this week", "next week", "in week 43"); then `pinned: true`. Otherwise `week: null`, `pinned: false`. `closed` is always `null`.
+   - **Week** only if the input says when to do it ("this week", "next week", "in week 43"); then `pinned: true`. Otherwise `week: null`, `pinned: false`. `weeks` is `[<week>]` when a week is set, otherwise `[]`. `closed` is always `null`.
+   - **Weekly** (see Weekly tasks in the data model): only when the input says the task itself repeats every week ("recurring", "weekly", "every week", "co tydzień", "каждую неделю", "щотижня"). Don't make a task weekly just because it mentions a weekly activity (e.g. "build a plan for weekly lessons" is one task); ask if unsure. A weekly task is saved as a **series**: `repeat: weekly`, `repeat_until` = the end date the user gives, or one year after today; `week: null`, `pinned: false`, `weeks: []`, `due: null`, `series: null`. After saving it, create this week's instance with `python3 scripts/weekly.py <series ID>` (or `--week YYYY-Www` for the week the input names). If the user wants another rhythm (daily, monthly), ask: only weekly is supported.
+   - All other tasks: `repeat: null`, `repeat_until: null`, `series: null`.
+   - **Content for one week of an existing series** ("for Learn Italian next week: chapter 3"): not a new task. Get that week's instance with `python3 scripts/weekly.py <series ID> --week YYYY-Www` (it creates it if missing) and add the content to it as an update: Description, Additional information, and the fragment appended to Original input.
    - **Tier and project**: the existing project that clearly fits. If none does, or the input names a project that doesn't exist yet, mark it for a question.
 
 4. **Check duplicates** by meaning against every existing task. No duplicates are allowed.
@@ -49,7 +51,7 @@ The input can be in any language, and it can be either:
 5. **Ask** — one AskUserQuestion call for all open points (more calls only beyond 4 questions):
    - **Project**: options are the best 1–3 existing projects labelled `Name (tier)`, plus `Create "<name>" in <tier>` if the input named one. The user can type another name via Other. Ask the tier separately (`Business` / `Personal`) if it isn't obvious. Create a new project file only from a name the user gave or confirmed; Description and Context are `None yet.` unless the input says more.
    - **Similar task**: show both tasks (ID, title, priority). Options:
-     - **Update existing** — keep its ID and `created`, set `updated`, append the new fragment to Original input, change title, priority, due or description only where the new input says so.
+     - **Update existing** — keep its ID and `created`, set `updated`, append the new fragment to Original input, change title, priority, due or description only where the new input says so. To change the week, use `scripts/update_task.py --week` (it keeps the `weeks` history).
      - **Create separate** — save it as a new task.
      - **Skip** — discard it.
 

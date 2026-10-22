@@ -4,13 +4,17 @@ title: Reopen blocked bank card
 tier: personal
 project: bank
 priority: P1
-status: new
+status: done
 due: null
 week: 2026-W41
 pinned: true
+weeks: [2026-W41]
+repeat: null
+repeat_until: null
+series: null
 created: 2026-10-05T16:30:56+02:00
-updated: 2026-10-08T17:11:11+02:00
-closed: null
+updated: 2026-10-15T15:44:58+02:00
+closed: 2026-10-15T15:44:58+02:00
 source: text
 ---
 

@@ -9,12 +9,13 @@ A personal task-management system. Phase 1: AI agents (Claude Code skills) that 
 - `data/profile.md` — the user's location, time zone and currency; every agent uses it for enrichment.
 - `data/tasks/` — tasks, one Markdown file each.
 - `data/projects/business/`, `data/projects/personal/` — projects, one Markdown file each.
-- `data/meetings/` — meeting plans made by `/meeting`, one Markdown file each.
+- `data/meetings/` — meeting plans and protocols made by `/ordo` (and closed point by point with `/end-meeting`), one Markdown file each, linked to tasks by ID.
 - `scripts/validate.py` — checks every file in `data/` against the data model. Runs automatically after each edit (hook in `.claude/settings.json`).
 - `scripts/list_tasks.py` — prints tasks as a table: `open` (default), `closed` or `all`.
-- `scripts/update_task.py` — the only way to change a task's status, priority, due, week or project (used by `/task` and the web app).
+- `scripts/update_task.py` — the only way to change a task's status, priority, due, week, project or a weekly series' end date (used by `/task` and the web app).
+- `scripts/weekly.py` — creates a weekly series' separate instance for one week (used by `/plan`, `/new-task` and `/task`).
 - `scripts/plan.py` — weekly planning rules (used by `/plan`).
-- `apps/web/` — the web app. `server.py` (Python stdlib, no dependencies) serves `static/` and a JSON API (`GET /api/tasks`, `POST /api/tasks/<id>` for edits via `scripts/update_task.py`). Run: `python3 apps/web/server.py` → http://localhost:8420. Tabs: Priority (grouped P1–P5) and Week (ISO weeks, browsable). The app shows only processed information; it never shows Original input. The front end talks to the API only, never to files, so the backend can be swapped for a hosted one later.
+- `apps/web/` — the web app. `server.py` (Python stdlib, no dependencies) serves `static/` and a JSON API (`GET /api/tasks` with tasks and meetings, `POST /api/tasks/<id>` for edits via `scripts/update_task.py`, `POST /api/tasks/<id>/draft` to draft a message with Claude via `draft.py`). The ✉ button on a task card drafts a fresh message to whoever the task involves, in their language (it asks when it can't tell); drafts are shown, not saved. Only drafting needs the Anthropic SDK (`pip install anthropic`) and credentials (`ANTHROPIC_API_KEY` or `ant auth login`); everything else stays stdlib-only. Run: `python3 apps/web/server.py` → http://localhost:8420. Tabs: All (every task, grouped P1–P4, filterable by open/done), Priority (open P1 tasks only), Week and Meetings (plans and protocols with their linked tasks; task cards show their meetings) (ISO weeks, browsable). The app shows only processed information; it never shows Original input. The front end talks to the API only, never to files, so the backend can be swapped for a hosted one later.
 
 ## Rules for every agent
 

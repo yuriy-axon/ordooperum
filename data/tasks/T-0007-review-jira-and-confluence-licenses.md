@@ -4,13 +4,17 @@ title: Review all Jira and Confluence licenses
 tier: business
 project: axon-operations
 priority: P2
-status: new
+status: done
 due: 2026-10-09
 week: 2026-W41
 pinned: true
+weeks: [2026-W41]
+repeat: null
+repeat_until: null
+series: null
 created: 2026-10-07T10:53:13+02:00
-updated: 2026-10-08T17:11:11+02:00
-closed: null
+updated: 2026-10-13T14:00:46+02:00
+closed: 2026-10-13T14:00:46+02:00
 source: text
 ---
 

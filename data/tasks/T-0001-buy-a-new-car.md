@@ -8,6 +8,10 @@ status: new
 due: 2026-12-31
 week: 2026-W46
 pinned: true
+weeks: [2026-W46]
+repeat: null
+repeat_until: null
+series: null
 created: 2026-10-05T16:28:51+02:00
 updated: 2026-10-08T17:16:35+02:00
 closed: null

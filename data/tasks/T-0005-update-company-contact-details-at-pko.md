@@ -4,12 +4,16 @@ title: Update company email and phone at PKO Bank Polski
 tier: business
 project: axon-poland
 priority: P3
-status: new
+status: in-progress
 due: null
 week: 2026-W43
 pinned: false
+weeks: [2026-W43]
+repeat: null
+repeat_until: null
+series: null
 created: 2026-10-06T17:35:57+02:00
-updated: 2026-10-08T17:11:11+02:00
+updated: 2026-10-19T15:23:02+02:00
 closed: null
 source: text
 ---

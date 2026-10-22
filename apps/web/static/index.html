@@ -10,14 +10,16 @@
   <header class="top">
     <h1>Ordo Operum</h1>
     <nav class="tabs" aria-label="Views">
-      <a href="#priority" data-view="priority">Priority</a>
+      <a href="#all" data-view="all">All</a>
+      <a href="#priority" data-view="priority" id="priority-tab">Priority</a>
       <a href="#week" data-view="week" id="week-tab">Week</a>
+      <a href="#meetings" data-view="meetings">Meetings</a>
     </nav>
     <div class="controls">
       <div class="seg" role="group" aria-label="Status" data-filter="status">
-        <button data-value="open" aria-pressed="true">Open</button>
-        <button data-value="closed">Closed</button>
-        <button data-value="all">All</button>
+        <button data-value="open">Open</button>
+        <button data-value="closed">Done</button>
+        <button data-value="all" aria-pressed="true">All</button>
       </div>
       <div class="seg" role="group" aria-label="Tier" data-filter="tier">
         <button data-value="all" aria-pressed="true">All tiers</button>

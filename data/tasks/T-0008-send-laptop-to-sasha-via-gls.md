@@ -4,13 +4,17 @@ title: Send laptop to Sasha in the Czech Republic via GLS
 tier: personal
 project: l2
 priority: P1
-status: new
+status: done
 due: null
 week: 2026-W41
 pinned: true
+weeks: [2026-W41]
+repeat: null
+repeat_until: null
+series: null
 created: 2026-10-08T17:01:32+02:00
-updated: 2026-10-08T17:03:20+02:00
-closed: null
+updated: 2026-10-15T15:45:17+02:00
+closed: 2026-10-15T15:45:17+02:00
 source: text
 ---
 

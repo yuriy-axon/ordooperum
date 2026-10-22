@@ -4,13 +4,17 @@ title: Communicate decisions to Todd on team and analytics
 tier: business
 project: flow
 priority: P1
-status: new
+status: done
 due: null
 week: 2026-W41
 pinned: true
+weeks: [2026-W41]
+repeat: null
+repeat_until: null
+series: null
 created: 2026-10-07T10:24:46+02:00
-updated: 2026-10-08T17:03:20+02:00
-closed: null
+updated: 2026-10-12T11:47:49+02:00
+closed: 2026-10-12T11:47:49+02:00
 source: text
 ---
 

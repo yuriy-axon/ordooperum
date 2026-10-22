@@ -6,10 +6,14 @@ project: ico
 priority: P1
 status: new
 due: null
-week: 2026-W41
+week: 2026-W43
 pinned: true
+weeks: [2026-W41, 2026-W43]
+repeat: null
+repeat_until: null
+series: null
 created: 2026-10-06T16:35:25+02:00
-updated: 2026-10-08T17:03:20+02:00
+updated: 2026-10-18T20:11:26+02:00
 closed: null
 source: text
 ---
