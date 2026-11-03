@@ -5,15 +5,15 @@ tier: business
 project: business-development
 priority: P1
 status: in-progress
-due: 2026-10-19
-week: 2026-W43
+due: 2026-10-23
+week: 2026-W45
 pinned: true
-weeks: [2026-W43]
+weeks: [2026-W43, 2026-W44, 2026-W45]
 repeat: null
 repeat_until: null
 series: null
 created: 2026-10-15T17:15:02+02:00
-updated: 2026-10-19T15:10:37+02:00
+updated: 2026-11-02T09:52:19+01:00
 closed: null
 source: text
 ---
@@ -25,6 +25,12 @@ Run buying signal check T1.2 (an internal buying-signal number) for DN. This is 
 ## Additional information
 
 None.
+
+## Comments
+
+### 2026-10-29 11:23
+
+we out out of tokens in Apollo
 
 ## Original input
 

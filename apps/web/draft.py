@@ -1,10 +1,16 @@
 """Draft a message to whoever a task involves, with Claude. Used by POST /api/tasks/<id>/draft.
 
-Needs the Anthropic SDK (`pip install anthropic`) and credentials (ANTHROPIC_API_KEY or `ant auth login`).
-Only this feature needs them; the rest of the app stays dependency-free.
+Runs the Claude Code CLI (`claude -p`), so it uses your existing Claude Code login: no API key, no extra packages.
+Needs `claude` on PATH and logged in.
 """
 
+import json
+import shutil
+import subprocess
+import tempfile
+
 MODEL = "claude-opus-5-5"
+TIMEOUT = 180  # seconds
 
 SCHEMA = {
     "type": "object",
@@ -37,10 +43,9 @@ class DraftError(Exception):
 def draft_message(task, profile, language=None):
     """task: dict with title, description, additional_info, original_input, project_name.
     Returns the parsed JSON dict described by SCHEMA."""
-    try:
-        import anthropic
-    except ImportError:
-        raise DraftError("The Anthropic SDK is not installed. Run: pip install anthropic")
+    claude = shutil.which("claude")
+    if not claude:
+        raise DraftError("The Claude Code CLI (`claude`) was not found on PATH.")
 
     prompt = "\n\n".join(filter(None, [
         f"Task: {task.get('title')}",
@@ -52,34 +57,23 @@ def draft_message(task, profile, language=None):
         f"Write the message in {language}." if language else "",
     ]))
 
+    cmd = [claude, "-p", "--model", MODEL, "--output-format", "json", "--tools", "",
+           "--system-prompt", SYSTEM, "--json-schema", json.dumps(SCHEMA)]
     try:
-        client = anthropic.Anthropic()
-        response = client.beta.messages.create(
-            model=MODEL,
-            max_tokens=16000,
-            betas=["server-side-fallback-2026-07-01"],
-            fallbacks="default",  # if Claude declines, Anthropic retries on its recommended fallback model
-            output_config={"effort": "medium", "format": {"type": "json_schema", "schema": SCHEMA}},
-            system=SYSTEM,
-            messages=[{"role": "user", "content": prompt}],
-        )
-    except anthropic.AuthenticationError:
-        raise DraftError("No valid Anthropic credentials. Set ANTHROPIC_API_KEY or run `ant auth login`.")
-    except anthropic.RateLimitError:
-        raise DraftError("Rate limited by the Anthropic API. Try again in a minute.")
-    except anthropic.APIStatusError as e:
-        raise DraftError(f"Anthropic API error {e.status_code}: {e.message}")
-    except anthropic.APIConnectionError:
-        raise DraftError("Could not reach the Anthropic API. Check your internet connection.")
+        # Run outside the repo so the project's CLAUDE.md, skills and hooks are not loaded.
+        proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True,
+                              timeout=TIMEOUT, cwd=tempfile.gettempdir())
+    except subprocess.TimeoutExpired:
+        raise DraftError("Claude took too long to answer. Try again.")
 
-    if response.stop_reason == "refusal":
-        raise DraftError("Claude declined to draft this message.")
-    if response.stop_reason == "max_tokens":
-        raise DraftError("The draft was cut off. Try again.")
-
-    import json
-    text = next((b.text for b in response.content if b.type == "text"), "")
     try:
-        return json.loads(text)
+        out = json.loads(proc.stdout)
     except ValueError:
+        err = (proc.stderr or proc.stdout).strip()
+        raise DraftError(f"Claude Code failed: {err[:300] or 'no output'}. Is `claude` logged in?")
+    if out.get("is_error"):
+        raise DraftError(f"Claude Code error: {str(out.get('result'))[:300]}")
+    result = out.get("structured_output")
+    if not isinstance(result, dict):
         raise DraftError("Claude returned an unexpected answer. Try again.")
+    return result

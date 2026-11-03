@@ -3,17 +3,17 @@ id: T-0001
 title: Buy a new Suzuki Vitara
 tier: personal
 project: new-car
-priority: P2
+priority: P3
 status: new
 due: 2026-12-31
-week: 2026-W46
+week: 2026-W50
 pinned: true
-weeks: [2026-W46]
+weeks: [2026-W46, 2026-W50]
 repeat: null
 repeat_until: null
 series: null
 created: 2026-10-05T16:28:51+02:00
-updated: 2026-10-08T17:16:35+02:00
+updated: 2026-10-29T17:45:21+01:00
 closed: null
 source: text
 ---

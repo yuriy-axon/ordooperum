@@ -32,18 +32,22 @@ REPEATS = {"weekly", "null"}
 TASK_FIELDS = ["id", "title", "tier", "project", "priority", "status", "due", "week", "pinned", "weeks", "repeat", "repeat_until",
               "series", "created", "updated", "closed", "source"]
 PROJECT_FIELDS = ["id", "name", "tier", "status", "created"]
-TASK_SECTIONS = ["Description", "Additional information", "Original input"]
+TASK_SECTIONS_ALL = ["Description", "Additional information", "Links", "Comments", "Original input"]
+TASK_OPTIONAL_SECTIONS = {"Links", "Comments"}  # present only once the task has one
+LINK_LINE = re.compile(r"^- (https?://\S+)$")
+COMMENT_HEADER = re.compile(r"^### \d{4}-\d{2}-\d{2} ([01]\d|2[0-3]):[0-5]\d$")
 PROJECT_SECTIONS = ["Description", "Context"]
 MEETING_FIELDS = ["id", "name", "title", "audience", "date", "time", "duration", "tier", "project", "tasks", "status", "created", "updated"]
 MEETING_SECTIONS = ["Goal", "Agenda", "Preparation", "Protocol", "Original input"]
 PROTOCOL_PARTS = ["Decisions", "Action items", "Open points"]
 MEETING_STATUSES = {"planned", "done", "cancelled"}
-AGENDA_ITEM = re.compile(r"^### \d+\. .+ — (P1|P2|P3)(?: · \d+ min)?$")
+AGENDA_ITEM = re.compile(r"^### \d+\. .+ — (P1|P2|P3)$")
 
 TASK_ID = re.compile(r"^T-\d{4}$")
 ISO_WEEK = re.compile(r"^\d{4}-W(0[1-9]|[1-4]\d|5[0-3])$")
 SLUG = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+WEEK_SUFFIX = re.compile(r" · Week (\d+)$")
 
 
 def slugify(text):
@@ -112,6 +116,28 @@ def check_sections(body, required, errors, where):
             errors.append(f"{where}: section '{name}' is empty")
 
 
+def check_comments(body, errors, where):
+    """Comments: one or more entries, each a '### YYYY-MM-DD HH:MM' header followed by text."""
+    m = re.search(r"^## Comments\s*\n(.*?)(?=^## |\Z)", body, flags=re.M | re.S)
+    text = m.group(1).strip() if m else ""
+    if text and not text.startswith("### "):
+        errors.append(f"{where}: Comments must start with a '### YYYY-MM-DD HH:MM' header")
+    for header in re.findall(r"^###.*$", text, flags=re.M):
+        if not COMMENT_HEADER.match(header):
+            errors.append(f"{where}: comment header '{header}' must be '### YYYY-MM-DD HH:MM'")
+
+
+def check_links(body, errors, where):
+    """Links: one '- https://…' bullet per line, no duplicates."""
+    m = re.search(r"^## Links\s*\n(.*?)(?=^## |\Z)", body, flags=re.M | re.S)
+    lines = [l for l in (m.group(1).strip() if m else "").splitlines() if l.strip()]
+    for line in lines:
+        if not LINK_LINE.match(line):
+            errors.append(f"{where}: link '{line}' must be '- https://…'")
+    if len(set(lines)) != len(lines):
+        errors.append(f"{where}: Links has duplicates")
+
+
 def load_projects(errors):
     projects = {}
     for tier in sorted(TIERS):
@@ -153,7 +179,13 @@ def check_tasks(projects, errors):
             errors.append(f"{where}: {e}")
             continue
         check_fields(meta, TASK_FIELDS, errors, where)
-        check_sections(body, TASK_SECTIONS, errors, where)
+        present = {name for name in TASK_OPTIONAL_SECTIONS if re.search(rf"^## {name}\s*$", body, flags=re.M)}
+        check_sections(body, [n for n in TASK_SECTIONS_ALL if n not in TASK_OPTIONAL_SECTIONS or n in present],
+                       errors, where)
+        if "Comments" in present:
+            check_comments(body, errors, where)
+        if "Links" in present:
+            check_links(body, errors, where)
         tid = meta.get("id", "")
         if not TASK_ID.match(tid):
             errors.append(f"{where}: id must look like T-0001")
@@ -265,11 +297,21 @@ def check_meetings(projects, task_ids, errors):
             errors.append(f"{where}: date is required, as YYYY-MM-DD")
         if mtime != "null" and not TIME.match(mtime or ""):
             errors.append(f"{where}: time must be HH:MM (24-hour) or null")
-        short = f"{mdate}-{slugify(name)}"
-        timed = f"{mdate}-{(mtime or '').replace(':', '')}-{slugify(name)}" if TIME.match(mtime or "") else None
+        suffix = WEEK_SUFFIX.search(name)
+        series = name[: suffix.start()] if suffix else name
+        try:
+            week = date.fromisoformat(mdate or "").isocalendar()[1]
+        except ValueError:
+            week = None
+        if week and re.search(r"\bweekly\b", series, flags=re.I) and not suffix:
+            errors.append(f"{where}: a weekly meeting's name must end with ' · Week {week}'")
+        if week and suffix and suffix.group(1) != str(week):
+            errors.append(f"{where}: name must end with ' · Week {week}', the ISO week of its date")
+        short = f"{mdate}-{slugify(series)}"
+        timed = f"{mdate}-{(mtime or '').replace(':', '')}-{slugify(series)}" if TIME.match(mtime or "") else None
         if re.fullmatch(r"\d{4}-\d{2}-\d{2}", mdate or "") and path.stem not in (short, timed):
             errors.append(f"{where}: file name must be '{short}.md'" + (f" (or '{timed}.md')" if timed else ""))
-        key = (mdate, slugify(name), mtime)
+        key = (mdate, slugify(series), mtime)
         if key in seen:
             errors.append(f"{where}: same date, name and time as {seen[key]}; add to that meeting instead")
         seen[key] = where
@@ -295,6 +337,10 @@ def check_meetings(projects, task_ids, errors):
             text = re.split(r"^## Original input\s*$", body, flags=re.M)[0]
             for tid in sorted(set(re.findall(r"\bT-\d{4}\b", text)) - set(linked)):
                 errors.append(f"{where}: {tid} is mentioned but missing from tasks")
+            for section in ("Goal", "Agenda", "Preparation"):
+                part = re.search(rf"^## {section}\s*\n(.*?)(?=^## |\Z)", body, flags=re.M | re.S)
+                if part and re.search(r"\bT-\d{4}\b", part.group(1)):
+                    errors.append(f"{where}: {section} must not mention tasks; link them only in the Protocol")
         protocol = re.search(r"^## Protocol\s*\n(.*?)(?=^## |\Z)", body, flags=re.M | re.S)
         protocol = protocol.group(1).strip() if protocol else ""
         if meta.get("status") == "planned" and protocol and protocol != "None yet.":
@@ -309,10 +355,12 @@ def check_meetings(projects, task_ids, errors):
         agenda = re.search(r"^## Agenda\s*\n(.*?)(?=^## |\Z)", body, flags=re.M | re.S)
         items = re.findall(r"^### .*$", agenda.group(1), flags=re.M) if agenda else []
         if agenda and not items:
-            errors.append(f"{where}: Agenda needs at least one item ('### 1. Title — P1 · 10 min')")
+            errors.append(f"{where}: Agenda needs at least one item ('### 1. Title — P1')")
         for item in items:
             if not AGENDA_ITEM.match(item):
-                errors.append(f"{where}: agenda item must look like '### 1. Title — P1 · 10 min', found '{item}'")
+                errors.append(f"{where}: agenda item must look like '### 1. Title — P1', found '{item}'")
+        if agenda and any(l.strip() and not l.startswith("### ") for l in agenda.group(1).splitlines()):
+            errors.append(f"{where}: Agenda holds only item headings; nothing goes under them")
 
 
 def check_profile(errors):

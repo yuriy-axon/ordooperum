@@ -6,14 +6,14 @@ project: apartment
 priority: P1
 status: new
 due: null
-week: 2026-W43
+week: 2026-W45
 pinned: true
-weeks: [2026-W43]
+weeks: [2026-W43, 2026-W44, 2026-W45]
 repeat: null
 repeat_until: null
 series: null
 created: 2026-10-13T15:15:43+02:00
-updated: 2026-10-18T20:11:26+02:00
+updated: 2026-10-29T17:44:23+01:00
 closed: null
 source: text
 ---

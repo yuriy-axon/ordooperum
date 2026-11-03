@@ -28,6 +28,10 @@ Apply the user's changes to existing tasks. Formats are in `docs/data-model.md`.
    `python3 scripts/update_task.py <ID> [--status …] [--priority …] [--due …] [--week …] [--project …] [--repeat-until …]`
    It sets `closed` and `updated`, pins weeks, records them in the `weeks` history, and validates. If it reports an error, tell the user and ask how to proceed.
 
-4. **Text changes** (title, description): edit the file directly, in polished English per the data model, and set `updated` from `date -Iseconds`. Never edit Original input. Then run `python3 scripts/validate.py`.
+4. **Links** ("add this link to T-0003: https://…", "remove the link …"): run `python3 scripts/link_task.py <ID> <url>` (add `--remove` to remove it). It keeps the task's Links section and validates. Use full `http(s)://` addresses as given.
 
-5. **Report** one line per task: `T-NNNN — title: what changed`.
+5. **Comments** ("comment on T-0003: …", "add a note to the bank task: …"): run `python3 scripts/comment_task.py <ID> "<text>"` with the user's text as written (in their language; don't polish it). It adds a dated entry to the task's Comments section and validates. Comments never replace a status or description change the user asked for.
+
+6. **Text changes** (title, description): edit the file directly, in polished English per the data model, and set `updated` from `date -Iseconds`. Never edit Original input. Then run `python3 scripts/validate.py`.
+
+7. **Report** one line per task: `T-NNNN — title: what changed`.

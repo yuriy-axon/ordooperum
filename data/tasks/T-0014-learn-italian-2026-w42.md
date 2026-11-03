@@ -4,7 +4,7 @@ title: Learn Italian · Week 42
 tier: personal
 project: italia
 priority: P3
-status: new
+status: done
 due: null
 week: 2026-W42
 pinned: true
@@ -13,8 +13,8 @@ repeat: null
 repeat_until: null
 series: T-0013
 created: 2026-10-16T18:30:25+02:00
-updated: 2026-10-19T12:02:33+02:00
-closed: null
+updated: 2026-11-02T09:52:19+01:00
+closed: 2026-11-02T09:52:19+01:00
 source: text
 ---
 

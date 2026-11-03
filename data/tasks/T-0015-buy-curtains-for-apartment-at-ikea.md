@@ -4,7 +4,7 @@ title: Buy curtains for the apartment at IKEA
 tier: personal
 project: apartment
 priority: P3
-status: new
+status: done
 due: null
 week: 2026-W44
 pinned: false
@@ -13,8 +13,8 @@ repeat: null
 repeat_until: null
 series: null
 created: 2026-10-18T11:30:28+02:00
-updated: 2026-10-18T20:11:26+02:00
-closed: null
+updated: 2026-10-26T15:36:15+01:00
+closed: 2026-10-26T15:36:15+01:00
 source: text
 ---
 

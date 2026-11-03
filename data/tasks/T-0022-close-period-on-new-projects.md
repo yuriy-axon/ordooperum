@@ -4,17 +4,17 @@ title: Close the period on new projects
 tier: business
 project: pmo
 priority: P1
-status: in-progress
+status: done
 due: 2026-10-20
-week: null
-pinned: false
-weeks: []
+week: 2026-W44
+pinned: true
+weeks: [2026-W44]
 repeat: null
 repeat_until: null
 series: null
 created: 2026-10-20T01:52:04+02:00
-updated: 2026-10-20T09:58:47+02:00
-closed: null
+updated: 2026-10-26T11:51:38+01:00
+closed: 2026-10-26T11:51:38+01:00
 source: text
 ---
 

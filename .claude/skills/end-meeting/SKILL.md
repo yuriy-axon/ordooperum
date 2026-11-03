@@ -10,7 +10,7 @@ Turn a planned meeting into its final notes, point by point, so the outcome can 
 
 ## Steps
 
-1. **Find the meeting.** Read `data/meetings/`. Use the name or date in the argument; with none, take today's `planned` meetings (date from `date -Iseconds`).
+1. **Find the meeting.** Read `data/meetings/`. Use the name or date in the argument (a name matches with or without its ` · Week <n>` suffix); with none, take today's `planned` meetings (date from `date -Iseconds`).
    - Exactly one match → use it.
    - Several → ask with AskUserQuestion (options: `<name> — <date> <time>`).
    - None → say there is no planned meeting for that, list the latest 3 planned ones, and ask which. If the user wants to record a meeting that was never planned, use `/ordo` instead.

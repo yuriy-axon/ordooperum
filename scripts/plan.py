@@ -11,7 +11,8 @@ Usage:
 The target week is next week when run on a Sunday, otherwise the current week.
 Weekly series are never planned themselves: --apply creates each one's instance for the target week
 (scripts/weekly.py) and closes a series whose repeat_until is over. Weekly instances keep their own week:
-they are never moved or carried over.
+they are never moved or carried over. --apply closes every open instance whose week is before the target
+week as done, because the newer weeks have their own instances.
 """
 import argparse
 import re
@@ -183,8 +184,13 @@ def main():
             weekly.append((s, target, f"{s['id']} {s['title']}: instance for {label(target)}"))
     for _, _, line in weekly:
         print(f"- {line}")
+    # Weekly instances of weeks that are over: closed as done, the newer weeks have their own instances.
+    expired = sorted((t for t in all_open if null(t.get("series")) and t["week"] and t["week"] < target),
+                     key=lambda t: t["id"])
+    for t in expired:
+        print(f"- {t['id']} {t['title']}: week is over, will be closed as done")
 
-    if args.apply and (changes or weekly):
+    if args.apply and (changes or weekly or expired):
         now = datetime.now().astimezone().isoformat(timespec="seconds")
         for tid, (week, pinned, _) in changes.items():
             write(by_id[tid], week, pinned, now)
@@ -194,8 +200,10 @@ def main():
                 print(f"{tid} {'created' if created else 'already exists'} ({s['title']}, {label(week)})")
             else:
                 update(s["id"], status="done")
+        for t in expired:
+            update(t["id"], status="done")
         print("\nSaved.")
-    elif changes or weekly:
+    elif changes or weekly or expired:
         print("\nDry run: nothing saved. Add --apply to save.")
     return 0
 

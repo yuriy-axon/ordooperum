@@ -71,7 +71,7 @@ h1 { font-size: 22px; margin: 0 0 16px; letter-spacing: -0.01em; }
 }
 
 .task {
-  background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--pcolor);
+  background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--pcolor);
   border-radius: var(--radius); margin-bottom: 8px;
 }
 .task summary { list-style: none; cursor: pointer; padding: 12px 14px; display: grid; gap: 4px; }
@@ -127,7 +127,6 @@ h1 { font-size: 22px; margin: 0 0 16px; letter-spacing: -0.01em; }
 .link { border: 0; background: none; color: var(--accent); font: inherit; font-size: 13px; cursor: pointer; padding: 0; }
 .link[hidden] { display: none; }
 
-.task .badge { justify-self: start; }
 .section-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
 .section-head h2 { font-size: 15px; margin: 0; }
 .section-head .count { margin-left: auto; color: var(--muted); font-size: 13px; }
@@ -156,7 +155,8 @@ h1 { font-size: 22px; margin: 0 0 16px; letter-spacing: -0.01em; }
 }
 .editor button.prio:hover { opacity: 1; }
 .editor button.prio[aria-pressed="true"] { background: var(--pcolor); color: #fff; opacity: 1; }
-.editor button.icon-btn { font-size: 16px; padding: 4px 10px; line-height: 1; }
+.editor button.icon-btn { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); border-color: var(--accent); font-weight: 600; }
+.editor button.icon-btn svg { flex: none; }
 .draft { width: 100%; display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
 .draft p { margin: 0; }
 .draft .muted { color: var(--muted); font-size: 13px; }
@@ -166,6 +166,24 @@ h1 { font-size: 22px; margin: 0 0 16px; letter-spacing: -0.01em; }
 .lang-row .lang-other { font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); width: 120px; }
 .draft a.btn { font-size: 13px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); text-decoration: none; }
 .draft select { font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+.comments h4 { font-size: 12px; color: var(--muted); font-weight: 600; margin: 10px 0 2px; }
+.comments p { margin: 0; white-space: pre-wrap; }
+.comment-form { display: grid; gap: 6px; margin-top: 8px; }
+.comment-form textarea { font: inherit; font-size: 14px; padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); resize: vertical; width: 100%; }
+.comment-actions { display: flex; gap: 10px; align-items: center; }
+.comment-actions button { font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 8px; cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+.comment-actions .edit-error { width: auto; }
+.links { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.link-chip { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); font-size: 13px; max-width: 100%; }
+.link-chip a { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 8px; color: var(--text); text-decoration: none; min-width: 0; }
+.link-chip a span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.link-chip a:hover span { text-decoration: underline; }
+.link-chip img { flex: none; border-radius: 3px; }
+.link-chip button { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 15px; line-height: 1; padding: 2px 8px 2px 2px; }
+.link-chip button:hover { color: var(--overdue); }
+.link-form input { flex: 1; min-width: 0; font: inherit; font-size: 14px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+.comment-actions button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.desc-edit { font: inherit; font-size: 13px; padding: 4px 10px; margin-bottom: 6px; border-radius: 8px; cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--accent); }
 .edit-error { width: 100%; margin: 0; color: var(--overdue); font-size: 13px; }
 .edit-error[hidden] { display: none; }
 

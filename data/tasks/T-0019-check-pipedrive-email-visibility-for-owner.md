@@ -6,14 +6,14 @@ project: business-development
 priority: P1
 status: new
 due: null
-week: null
-pinned: false
-weeks: []
+week: 2026-W45
+pinned: true
+weeks: [2026-W44, 2026-W45]
 repeat: null
 repeat_until: null
 series: null
 created: 2026-10-19T13:21:42+02:00
-updated: 2026-10-19T13:21:42+02:00
+updated: 2026-11-02T09:52:19+01:00
 closed: null
 source: text
 ---

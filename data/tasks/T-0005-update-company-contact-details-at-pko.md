@@ -6,14 +6,14 @@ project: axon-poland
 priority: P3
 status: in-progress
 due: null
-week: 2026-W43
-pinned: false
-weeks: [2026-W43]
+week: 2026-W45
+pinned: true
+weeks: [2026-W43, 2026-W44, 2026-W45]
 repeat: null
 repeat_until: null
 series: null
 created: 2026-10-06T17:35:57+02:00
-updated: 2026-10-19T15:23:02+02:00
+updated: 2026-11-02T09:52:19+01:00
 closed: null
 source: text
 ---
@@ -28,6 +28,12 @@ PKO Bank Polski asks for the company's outdated contact details (email address a
 - Research: An Italian qualified electronic signature (firma digitale remota) costs about €46–59 + VAT for three years (Aruba €45.90, InfoCert €49, Namirial €59); with identity verification and shipping, about €80–90 in total. — [source](https://chitelodice.it/firma-digitale/firma-digitale-quanto-costa-2026/), 2026-10-08
 - Research: The Polish Consulate General in Milan (via Monte Rosa 6, 20149 Milan; +39 02 45381500) can certify a signature for the postal option. Visits need an e-Konsulat appointment; office hours are Monday–Wednesday and Friday 09:00–13:00, Thursday 13:00–17:00. — [source](https://www.gov.pl/web/wlochy/konsulat-generalny-rp-w-mediolanie), 2026-10-08
 - Research: The consular fee for certifying a signature is €40 (fee table valid from 1 January 2026). — [source](https://powroty.gov.pl/oplaty-konsularne-po-zmianach-od-1-stycznia-2026-r/), 2026-10-08
+
+## Comments
+
+### 2026-10-29 17:43
+
+waiting for digital signature
 
 ## Original input
 

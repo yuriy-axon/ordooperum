@@ -4,7 +4,7 @@ title: Approve all ICO procedures
 tier: business
 project: ico
 priority: P1
-status: new
+status: done
 due: null
 week: 2026-W43
 pinned: true
@@ -13,8 +13,8 @@ repeat: null
 repeat_until: null
 series: null
 created: 2026-10-06T16:35:25+02:00
-updated: 2026-10-18T20:11:26+02:00
-closed: null
+updated: 2026-10-23T17:25:46+02:00
+closed: 2026-10-23T17:25:46+02:00
 source: text
 ---
 

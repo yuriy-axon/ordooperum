@@ -6,14 +6,14 @@ project: italia
 priority: P1
 status: new
 due: null
-week: 2026-W43
+week: 2026-W45
 pinned: true
-weeks: [2026-W42, 2026-W43]
+weeks: [2026-W42, 2026-W43, 2026-W44, 2026-W45]
 repeat: null
 repeat_until: null
 series: null
 created: 2026-10-16T18:18:19+02:00
-updated: 2026-10-18T20:11:26+02:00
+updated: 2026-11-02T09:52:19+01:00
 closed: null
 source: text
 ---

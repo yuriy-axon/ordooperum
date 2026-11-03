@@ -23,7 +23,7 @@ The **planning week** is next week when run on a Sunday, otherwise the current w
    - `P3` → the least busy of the next 4 weeks
    - `P4` → the least busy of the next 13 weeks
    - never later than the week of the due date
-8. Weekly series (`repeat: weekly`) are never planned themselves. For each one, the script creates its separate instance for the planning week (unless it exists already), and closes a series as `done` once its `repeat_until` is over. Instances are pinned to their own week and are never moved or carried over: an unfinished one stays in its week as not done, because the next week has its own instance.
+8. Weekly series (`repeat: weekly`) are never planned themselves. For each one, the script creates its separate instance for the planning week (unless it exists already), and closes a series as `done` once its `repeat_until` is over. Instances are pinned to their own week and are never moved or carried over. When planning is applied, every open instance whose week is before the planning week is closed as `done`, because the newer weeks have their own instances; it stays in its own week.
 9. No limit on tasks per week.
 10. Every new week a task gets is appended to its `weeks` history, so repeatedly carried-over tasks stay visible.
 

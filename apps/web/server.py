@@ -2,20 +2,27 @@
 """Local web app: serves the task board and a read-only JSON API over data/.
 
 Usage:
-  python3 apps/web/server.py [--port 8420]
+  python3 apps/web/server.py [--port 8420] [--lan]
 
 Endpoints:
   GET /              the task board
   GET /api/tasks     all tasks with project names, description and additional information,
                      and all meetings with their plan, protocol and linked task IDs
   POST /api/tasks/<id>  change status, priority, due, week or project (JSON body), via scripts/update_task.py
+  POST /api/tasks/<id>/comments  add a comment ({"text": ...}), via scripts/comment_task.py
+  POST /api/tasks/<id>/description  replace the description ({"text": ...}), via scripts/describe_task.py
+  POST /api/tasks/<id>/links  add a link ({"url": ...}) or remove it ({"url": ..., "remove": true}), via scripts/link_task.py
   POST /api/tasks/<id>/draft  draft a message about the task with Claude ({"language": optional}); see draft.py
 
-Binds to 127.0.0.1 only. Data is read fresh on every request.
+Binds to 127.0.0.1 only, unless --lan is given: then it listens on every network interface so other
+devices on the same network (a phone, a laptop) can open it. There is no login: anyone on that network
+can read and edit tasks and request message drafts, so use --lan only on a trusted network.
+Data is read fresh on every request.
 """
 import argparse
 import json
 import re
+import socket
 import sys
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -25,12 +32,16 @@ STATIC = Path(__file__).resolve().parent / "static"
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from comment_task import add_comment  # noqa: E402
+from describe_task import set_description  # noqa: E402
+from link_task import change_link  # noqa: E402
 from draft import DraftError, draft_message  # noqa: E402
 from update_task import UpdateError, update  # noqa: E402
 from validate import (CLOSED_STATUSES, MEETINGS, OPEN_STATUSES, PROFILE, PROJECTS, TASK_ID, TASKS, parse,  # noqa: E402
                       parse_list, parse_weeks)
 
-SECTIONS = {"Description": "description", "Additional information": "additional_info", "Original input": "original_input"}
+SECTIONS = {"Description": "description", "Additional information": "additional_info", "Links": "links", "Comments": "comments",
+            "Original input": "original_input"}
 MEETING_SECTIONS = {"Goal": "goal", "Agenda": "agenda", "Preparation": "preparation", "Protocol": "protocol"}
 
 
@@ -87,6 +98,7 @@ def load_tasks():
         task["weeks"] = parse_weeks(task.get("weeks")) or []
         sections = split_sections(body)
         sections.pop("original_input")  # not shown in the app
+        sections["links"] = re.findall(r"^- (\S+)\s*$", sections["links"], flags=re.M)
         task.update(sections)
         tasks.append(task)
     return tasks
@@ -136,7 +148,7 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self):
-        m = re.fullmatch(r"/api/tasks/(T-\d{4})(/draft)?", self.path)
+        m = re.fullmatch(r"/api/tasks/(T-\d{4})(/draft|/comments|/description|/links)?", self.path)
         if not m:
             return self.send_json(404, {"error": "Not found"})
         # Only accept JSON from this page: blocks form posts from other websites.
@@ -144,6 +156,27 @@ class Handler(SimpleHTTPRequestHandler):
         if self.headers.get("Content-Type", "").split(";")[0] != "application/json" or (
                 origin and origin != f"http://{self.headers.get('Host')}"):
             return self.send_json(403, {"error": "Forbidden"})
+        if m.group(2) == "/comments":  # POST /api/tasks/<id>/comments {"text": ...}: add a comment
+            try:
+                body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+                stamp = add_comment(m.group(1), str(body.get("text") or ""))
+            except (ValueError, UpdateError) as e:
+                return self.send_json(400, {"error": str(e)})
+            return self.send_json(200, {"added": stamp})
+        if m.group(2) == "/description":  # POST /api/tasks/<id>/description {"text": ...}: replace the description
+            try:
+                body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+                changed = set_description(m.group(1), str(body.get("text") or ""))
+            except (ValueError, UpdateError) as e:
+                return self.send_json(400, {"error": str(e)})
+            return self.send_json(200, {"changed": changed})
+        if m.group(2) == "/links":  # POST /api/tasks/<id>/links {"url": ..., "remove": optional}: add or remove a link
+            try:
+                body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+                changed = change_link(m.group(1), str(body.get("url") or ""), bool(body.get("remove")))
+            except (ValueError, UpdateError) as e:
+                return self.send_json(400, {"error": str(e)})
+            return self.send_json(200, {"changed": changed})
         if m.group(2):  # POST /api/tasks/<id>/draft {"language": optional}: draft a message with Claude
             try:
                 body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
@@ -171,12 +204,26 @@ class Handler(SimpleHTTPRequestHandler):
         sys.stderr.write("%s %s\n" % (self.command, self.path))
 
 
+def lan_ip():
+    """This computer's address on the local network."""
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        try:
+            s.connect(("192.0.2.1", 80))  # sends nothing; only picks the outgoing interface
+            return s.getsockname()[0]
+        except OSError:
+            return "<this computer's IP>"
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8420)
+    parser.add_argument("--lan", action="store_true", help="serve to other devices on the local network (no login)")
     args = parser.parse_args()
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    server = ThreadingHTTPServer(("0.0.0.0" if args.lan else "127.0.0.1", args.port), Handler)
     print(f"Ordo Operum running at http://localhost:{args.port}", flush=True)
+    if args.lan:
+        print(f"On your local network: http://{lan_ip()}:{args.port}", flush=True)
+        print("No login: anyone on this network can read and edit tasks.", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

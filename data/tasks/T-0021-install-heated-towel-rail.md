@@ -4,17 +4,17 @@ title: Install a heated towel rail
 tier: personal
 project: apartment
 priority: P3
-status: new
+status: done
 due: null
-week: null
-pinned: false
-weeks: []
+week: 2026-W44
+pinned: true
+weeks: [2026-W45, 2026-W44]
 repeat: null
 repeat_until: null
 series: null
 created: 2026-10-20T01:47:12+02:00
-updated: 2026-10-20T01:47:12+02:00
-closed: null
+updated: 2026-10-30T13:43:52+01:00
+closed: 2026-10-30T13:43:52+01:00
 source: text
 ---
 

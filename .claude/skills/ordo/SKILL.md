@@ -1,6 +1,6 @@
 ---
 name: ordo
-description: Plan meetings with the user's team and write their protocols. Before a meeting, turns the user's text (any language, typed or dictated) into a simple meeting plan — a goal and a list of talking points, each with a name and priority. After the meeting, turns the user's notes into a protocol with decisions, action items and open points, and proposes task changes. Links every task the user mentions by ID. Every meeting has a date and a name; the plan, notes and everything else for that date and name go into one file in data/meetings/. Use when the user runs /ordo, asks to prepare, plan or get ready for a meeting, or gives notes, minutes or a transcript of a meeting that happened.
+description: Plan meetings with the user's team and write their protocols. Before a meeting, turns the user's text (any language, typed or dictated) into a simple meeting plan — a goal and a list of talking points, each with a name and priority. After the meeting, turns the user's notes into a protocol with decisions, action items and open points, and proposes task changes. Never links tasks to the plan; in the protocol, links every task the user mentions by ID. Every meeting has a date and a name; the plan, notes and everything else for that date and name go into one file in data/meetings/. Use when the user runs /ordo, asks to prepare, plan or get ready for a meeting, or gives notes, minutes or a transcript of a meeting that happened.
 argument-hint: "<what the meeting is about, with whom — or the notes after it>"
 ---
 
@@ -19,19 +19,19 @@ If the mode is unclear, ask.
 
 ## Which meeting
 
-Every meeting is identified by its **date** and **name** (and **time**, if two meetings with the same name fall on one day); see Meetings in `docs/data-model.md`. Everything the user gives for that date and name — the plan, changes to it, notes, the protocol — goes into that one meeting file.
+Every meeting is identified by its **date** and **series name** (and **time**, if two meetings with the same series name fall on one day); see Meetings in `docs/data-model.md`. Everything the user gives for that date and name — the plan, changes to it, notes, the protocol — goes into that one meeting file.
 
-1. **Get date, name and time from the input.** Resolve relative dates ("tomorrow", "on Thursday", "yesterday") against today's date from `date -Iseconds` and the profile time zone. The name is what the user calls the meeting ("sales weekly", "sync with Todd"), written in title case (`Sales weekly`). Reuse the exact `name` of an earlier meeting in `data/meetings/` when the user clearly means the same series.
+1. **Get date, name and time from the input.** Resolve relative dates ("tomorrow", "on Thursday", "yesterday") against today's date from `date -Iseconds` and the profile time zone. The series name is what the user calls the meeting ("sales weekly", "sync with Todd"), written in title case (`Sales weekly`). Reuse the exact series name of an earlier meeting in `data/meetings/` when the user clearly means the same series. If the meeting repeats every week (the user says so, or the series name contains "weekly"), the `name` is `<series name> · Week <n>` with the ISO week of the meeting's date (see Weekly meetings in `docs/data-model.md`); otherwise the name is just the series name.
 2. **Ask for what's missing.** If the date or name is missing or unclear, ask in one AskUserQuestion call before doing anything else (for the name, offer names of earlier meetings with the same audience, if any). Also ask for the start time if it isn't given; the user may skip it (`time: null`). Never guess a date or name.
-3. **Find the file.** Look in `data/meetings/` for a meeting with the same `date` and `name`:
+3. **Find the file.** Look in `data/meetings/` for a meeting with the same `date` and series name:
    - **One found** → work on it: keep its `id`, `name`, `date` and `created`; set `updated`; append the new input verbatim to Original input. A plan update rewrites the plan sections; notes go to Protocol mode on this file.
-   - **Several found** (same name, different times) → match by time; if the input has no time, ask which one.
+   - **Several found** (same series name, different times) → match by time; if the input has no time, ask which one.
    - **None found** → create a new file named as in the data model. In Protocol mode, say there was no plan and write the protocol into the new file (Agenda then lists the topics actually discussed, as name and priority only).
    Never put input for one date and name into another meeting's file. If the user moves a meeting to another date or renames it, ask first, then rename the file to match and keep everything else.
 
 ## Same-name meetings
 
-Before building any agenda or protocol, read **every** meeting in `data/meetings/` with the same `name` (all dates, planned, done and cancelled), oldest first. The new plan or protocol must continue that series consistently:
+Before building any agenda or protocol, read **every** meeting in `data/meetings/` with the same series name — the `name` without its ` · Week <n>` suffix — (all dates, planned, done and cancelled), oldest first. The new plan or protocol must continue that series consistently:
 
 - **Structure and style**: the same goal phrasing, the same order and titles for recurring topics, a similar level of detail and tone, and the same way of writing action items and decisions. Reuse an earlier topic title word for word when the topic recurs.
 - **Recurring topics**: topics that appear in most earlier meetings of the series ("as usual…") keep their usual place and priority unless the user says otherwise.
@@ -42,33 +42,35 @@ If there are no earlier meetings with that name, say so in the report; this meet
 
 ## Linking tasks
 
-In both modes, find every task the user refers to, in any wording ("the Jira licenses thing", "bank card", "T-0007").
+**Plan mode never links tasks.** The agenda, Goal and Preparation never name or refer to tasks from `data/tasks/` (no `T-NNNN`, no task titles), even when a talking point sounds like one; `tasks` stays `[]`, and Ordo doesn't ask which task a point means. Write every point as plain text from the user's words.
+
+In Protocol mode, find every task the user refers to, in any wording ("the Jira licenses thing", "bank card", "T-0007").
 
 1. Match by ID, or by meaning against the titles and descriptions of all tasks in `data/tasks/` (open first; closed ones only if the input clearly refers to finished work).
 2. If a mention could be more than one task, ask with AskUserQuestion (options: the closest 2–4 tasks as `T-NNNN — title`, plus `None of these`). Never guess.
 3. Refer to linked tasks in the text as `T-NNNN title`, and list every linked ID in the `tasks` field.
-4. A mention that matches no task is not a link. In Plan mode, keep it as plain text. In Protocol mode, it may become a proposed new task (step P4).
+4. A mention that matches no task is not a link; it may become a proposed new task (step P4). Task IDs go only into the Protocol, never into Goal, Agenda or Preparation.
 
 ## Plan mode
 
-1. **Load** `data/projects/`, `data/tasks/`, every meeting with the same name (see Same-name meetings), and other earlier meetings with the same audience or project.
+1. **Load** `data/projects/`, every meeting with the same series name (see Same-name meetings), and other earlier meetings with the same audience or project.
 
 2. **Check what's missing.** Besides date and name (see Which meeting), the plan needs the **audience**; **duration** and **project** are optional (`null` if not given). Ask only if the audience is unclear. Never guess it.
 
-3. **Build the agenda** — keep it simple: each talking point is only its **name and priority**, as `### <n>. <title> — <priority>`, with nothing under it (no description, time slot, key points or research).
+3. **Build the agenda** — keep it simple: each talking point is only its **name and priority**, as `### <n>. <title> — <priority>`, with nothing under it (no minutes, description, key points, research or other breakdown).
    - Split the input into distinct talking points, each named in a few words of polished English. Add a point the user didn't mention only for an open action item or open point from the last protocol of this series, and mention it in the report.
-   - Priority: `P1` must cover, `P2` should cover, `P3` if time allows — from the user's emphasis, urgency and the priority of linked tasks.
+   - Priority: `P1` must cover, `P2` should cover, `P3` if time allows — from the user's emphasis and urgency.
    - Order: P1 points first, then P2, then P3; within a priority, the user's order.
    - **Goal**: one sentence summing up what the points should achieve, from the input.
-   - **Preparation**: only what the user said to prepare; otherwise `None.`
+   - **Preparation**: short suggestions of concrete things to do or check before the meeting, only for points on the agenda (plus anything the user said to prepare). No research, facts or talking notes. `None.` if nothing is needed.
 
-4. **Save** to the file from Which meeting with `status: planned`, `Protocol` set to `None yet.`, timestamps from `date -Iseconds`, and the input verbatim under Original input. Run `python3 scripts/validate.py` and fix every error.
+4. **Save** to the file from Which meeting with `status: planned`, `tasks: []` (or the links an earlier protocol already added), `Protocol` set to `None yet.`, timestamps from `date -Iseconds`, and the input verbatim under Original input. Run `python3 scripts/validate.py` and fix every error.
 
-5. **Show the plan** in chat: name, date and time, audience, linked tasks (`T-NNNN title`), and the agenda as a list (`1. Title — P1`). Mention which earlier meetings of the series were used, if any. Don't show Original input. End with the file path.
+5. **Show the plan** in chat: name, date and time, audience, and the agenda as a list (`1. Title — P1`). Mention which earlier meetings of the series were used, if any. Don't show Original input. End with the file path.
 
 ## Protocol mode
 
-P1. **Load** the meeting found in Which meeting, every other meeting with the same name (see Same-name meetings), its linked tasks, and the user's projects.
+P1. **Load** the meeting found in Which meeting, every other meeting with the same series name (see Same-name meetings), its linked tasks, and the user's projects.
 
 P2. **Write the protocol** in polished English, following the data model shape:
    - First line: `Held <date> · Attendees: <names>`, using the date and names from the notes. The date is the meeting's `date`. If no attendees are named, write `Attendees: not recorded`.

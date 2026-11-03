@@ -5,7 +5,7 @@ const PRIORITIES = [
   { id: "P4", label: "Low", meaning: "Months" },
 ];
 
-const state = { view: "all", week: null, focus: null, status: "all", tier: "all", tasks: [], meetings: [], meetingsByTask: {}, drafts: {} };
+const state = { view: "all", week: null, focus: null, status: "open", tier: "all", tasks: [], meetings: [], meetingsByTask: {}, drafts: {}, commentDrafts: {}, descEdits: {}, linkDrafts: {} };
 const $ = id => document.getElementById(id);
 const board = $("board");
 const summary = $("summary");
@@ -42,6 +42,7 @@ function shiftWeek(key, n) {
 const weekNum = key => Number(key.split("-W")[1]);
 const today = ymd(new Date());
 const thisWeek = isoWeek(new Date());
+const nextWeek = shiftWeek(thisWeek, 1);
 
 function weekRange(key) {
   const start = mondayOf(key);
@@ -52,6 +53,7 @@ function weekRange(key) {
 
 // Which week a task belongs to — see docs/data-model.md.
 function taskWeek(t) {
+  if (t.series && t.week) return t.week;  // a weekly instance always stays in its own week
   if (t.is_closed) return t.closed ? isoWeek(new Date(t.closed)) : null;
   if (t.week) return t.week;
   if (t.due) return isoWeek(localDate(t.due));
@@ -122,7 +124,7 @@ function preview(text, max = 110) {
   return plain.length > max ? plain.slice(0, max).trimEnd() + "…" : plain;
 }
 
-function taskCard(t, { badge = false } = {}) {
+function taskCard(t) {
   const overdue = t.due && !t.is_closed && t.due < today;
   const due = t.due ? `<span class="${overdue ? "overdue" : ""}">Due ${esc(t.due)}${overdue ? " · overdue" : ""}</span>` : "";
   const week = t.week ? `<span>${t.pinned === "true" ? "📌 " : ""}Week ${weekNum(t.week)}</span>` : "";
@@ -141,7 +143,6 @@ function taskCard(t, { badge = false } = {}) {
   return `
     <details class="task ${t.priority.toLowerCase()} ${t.is_closed ? "closed" : ""} ${isSeries(t) ? "series" : ""} ${inProgress(t) ? "in-progress" : ""}" data-id="${esc(t.id)}">
       <summary>
-        ${badge ? `<span class="badge">${esc(t.priority)}</span>` : ""}
         <span class="title">${esc(t.title)}</span>
         <span class="meta">
           <span>${esc(t.id)}</span>
@@ -151,11 +152,13 @@ function taskCard(t, { badge = false } = {}) {
         </span>
       </summary>
       <div class="detail">
-        <details class="desc">
+        <details class="desc" ${state.descEdits[t.id] !== undefined ? "open" : ""}>
           <summary><h3>Description</h3><span class="preview">${esc(preview(t.description))}</span></summary>
-          ${md(t.description)}
+          ${descriptionBlock(t)}
         </details>
         <h3>Additional information</h3>${md(t.additional_info)}
+        ${linksBlock(t)}
+        ${commentsBlock(t)}
         ${meetings.length ? `<h3>Meetings</h3><ul>${meetings.map(m => `<li><a href="#meetings/${esc(m.id)}">${esc(m.name)}</a> — ${esc(m.title)} · ${meetingWhen(m)}</li>`).join("")}</ul>` : ""}
         ${editor(t)}
       </div>
@@ -189,7 +192,7 @@ function editor(t) {
     <div class="editor">
       <div class="actions">
         ${actions.map(([s, l]) => `<button data-set="status" data-value="${s}" class="${s === "done" ? "primary" : ""}">${l}</button>`).join("")}
-        ${t.is_closed ? "" : `<button class="icon-btn" data-draft="${esc(t.id)}" title="Draft a message about this task" aria-label="Draft a message">✉</button>`}
+        ${t.is_closed ? "" : `<button class="icon-btn" data-draft="${esc(t.id)}" title="Draft a message about this task" aria-label="Draft a message"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>Draft</button>`}
       </div>
       ${draftPanel(t.id)}
       <div class="field">Priority
@@ -207,6 +210,181 @@ function editor(t) {
       <p class="edit-error" hidden></p>
     </div>`;
 }
+
+// ---------- description editor (POST /api/tasks/<id>/description); text being edited is kept in state ----------
+
+function descriptionBlock(t) {
+  const editing = state.descEdits[t.id];
+  if (editing === undefined) {
+    return `${md(t.description)}<button class="desc-edit" data-desc-edit="${esc(t.id)}">Edit description</button>`;
+  }
+  return `
+    <div class="comment-form">
+      <textarea rows="${Math.min(16, editing.split("\n").length + 2)}" data-desc-for="${esc(t.id)}">${esc(editing)}</textarea>
+      <div class="comment-actions">
+        <button class="primary" data-desc-save="${esc(t.id)}">Save</button>
+        <button data-desc-cancel="${esc(t.id)}">Cancel</button>
+        <span class="edit-error" hidden></span>
+      </div>
+    </div>`;
+}
+
+async function saveDescription(id, card) {
+  const text = (state.descEdits[id] || "").trim();
+  const err = card.querySelector(".desc .edit-error");
+  if (!text) { err.textContent = "The description can't be empty."; err.hidden = false; return; }
+  try {
+    const res = await fetch(`/api/tasks/${id}/description`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    delete state.descEdits[id];
+    await load();
+  } catch (e) {
+    err.textContent = `Not saved: ${e.message}`;
+    err.hidden = false;
+  }
+}
+
+board.addEventListener("click", e => {
+  const btn = e.target.closest("button[data-desc-edit], button[data-desc-save], button[data-desc-cancel]");
+  if (!btn) return;
+  const { descEdit, descSave, descCancel } = btn.dataset;
+  if (descEdit) {
+    state.descEdits[descEdit] = state.tasks.find(t => t.id === descEdit)?.description || "";
+    render();
+    board.querySelector(`textarea[data-desc-for="${CSS.escape(descEdit)}"]`)?.focus();
+  } else if (descSave) saveDescription(descSave, btn.closest(".task"));
+  else { delete state.descEdits[descCancel]; render(); }
+});
+board.addEventListener("input", e => {
+  const el = e.target.closest("textarea[data-desc-for]");
+  if (el) state.descEdits[el.dataset.descFor] = el.value;
+});
+board.addEventListener("keydown", e => {  // ⌘/Ctrl+Enter saves, Escape cancels
+  const el = e.target.closest("textarea[data-desc-for]");
+  if (!el) return;
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveDescription(el.dataset.descFor, el.closest(".task")); }
+  if (e.key === "Escape") { delete state.descEdits[el.dataset.descFor]; render(); }
+});
+
+// ---------- links (POST /api/tasks/<id>/links): shown as short chips with the site's icon ----------
+
+function shortLink(url) {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./, "");
+    const last = u.pathname.split("/").filter(Boolean).pop() || "";
+    const text = last ? `${host}/…/${decodeURIComponent(last)}` : host;
+    return { host: u.hostname, text: text.length > 36 ? text.slice(0, 35) + "…" : text };
+  } catch { return { host: "", text: url.slice(0, 36) }; }
+}
+
+function linksBlock(t) {
+  const links = t.links || [];
+  return `
+    <h3>Links</h3>
+    ${links.length ? `<div class="links">${links.map(url => {
+      const { host, text } = shortLink(url);
+      return `<span class="link-chip">
+        <a href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="${esc(url)}">
+          <img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=32" alt="" width="16" height="16" loading="lazy" onerror="this.style.visibility='hidden'">
+          <span>${esc(text)}</span>
+        </a>
+        <button type="button" data-link-remove="${esc(t.id)}" data-url="${esc(url)}" title="Remove link" aria-label="Remove link">×</button>
+      </span>`;
+    }).join("")}</div>` : ""}
+    <div class="comment-actions link-form">
+      <input type="url" placeholder="Paste a link…" data-link-for="${esc(t.id)}" value="${esc(state.linkDrafts[t.id] || "")}">
+      <button data-link-add="${esc(t.id)}">Add link</button>
+      <span class="edit-error" hidden></span>
+    </div>`;
+}
+
+async function changeLink(id, url, remove, card) {
+  const err = card.querySelector(".link-form .edit-error");
+  if (!url) return;
+  try {
+    const res = await fetch(`/api/tasks/${id}/links`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, remove }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    if (!remove) delete state.linkDrafts[id];
+    await load();
+  } catch (e) {
+    err.textContent = `Not saved: ${e.message}`;
+    err.hidden = false;
+  }
+}
+
+board.addEventListener("click", e => {
+  const add = e.target.closest("button[data-link-add]");
+  if (add) changeLink(add.dataset.linkAdd, (state.linkDrafts[add.dataset.linkAdd] || "").trim(), false, add.closest(".task"));
+  const rm = e.target.closest("button[data-link-remove]");
+  if (rm) changeLink(rm.dataset.linkRemove, rm.dataset.url, true, rm.closest(".task"));
+});
+board.addEventListener("input", e => {
+  const el = e.target.closest("input[data-link-for]");
+  if (el) state.linkDrafts[el.dataset.linkFor] = el.value;
+});
+board.addEventListener("keydown", e => {  // Enter adds the link
+  const el = e.target.closest("input[data-link-for]");
+  if (el && e.key === "Enter") { e.preventDefault(); changeLink(el.dataset.linkFor, el.value.trim(), false, el.closest(".task")); }
+});
+
+// ---------- comments (POST /api/tasks/<id>/comments); unsent text is kept in state across re-renders ----------
+
+function commentsBlock(t) {
+  return `
+    <h3>Comments</h3>
+    ${t.comments ? `<div class="comments">${md(t.comments)}</div>` : ""}
+    <div class="comment-form">
+      <textarea rows="3" placeholder="Add a comment…" data-comment-for="${esc(t.id)}">${esc(state.commentDrafts[t.id] || "")}</textarea>
+      <div class="comment-actions">
+        <button data-comment-add="${esc(t.id)}">Add comment</button>
+        <span class="edit-error" hidden></span>
+      </div>
+    </div>`;
+}
+
+async function addComment(id, card) {
+  const text = (state.commentDrafts[id] || "").trim();
+  const err = card.querySelector(".comment-actions .edit-error");
+  if (!text) return;
+  try {
+    const res = await fetch(`/api/tasks/${id}/comments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    delete state.commentDrafts[id];
+    await load();
+  } catch (e) {
+    err.textContent = `Not saved: ${e.message}`;
+    err.hidden = false;
+  }
+}
+
+board.addEventListener("click", e => {
+  const btn = e.target.closest("button[data-comment-add]");
+  if (btn) addComment(btn.dataset.commentAdd, btn.closest(".task"));
+});
+board.addEventListener("input", e => {
+  const el = e.target.closest("textarea[data-comment-for]");
+  if (el) state.commentDrafts[el.dataset.commentFor] = el.value;
+});
+board.addEventListener("keydown", e => {  // ⌘/Ctrl+Enter adds the comment
+  const el = e.target.closest("textarea[data-comment-for]");
+  if (el && e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addComment(el.dataset.commentFor, el.closest(".task")); }
+});
 
 // ---------- message drafts (POST /api/tasks/<id>/draft, written by Claude on the server) ----------
 // Kept in state so a draft survives the re-render when the page reloads data.
@@ -315,7 +493,7 @@ function section(title, tasks, { cls = "", sort = byPriorityThenDue } = {}) {
   return `
     <section class="group ${cls}">
       <div class="section-head"><h2>${title}</h2><span class="count">${tasks.length}</span></div>
-      ${tasks.sort(sort).map(t => taskCard(t, { badge: true })).join("")}
+      ${tasks.sort(sort).map(t => taskCard(t)).join("")}
     </section>`;
 }
 
@@ -377,7 +555,7 @@ function meetingCard(m) {
         <h3>Goal</h3>${md(m.goal)}
         <h3>Agenda</h3>${md(m.agenda)}
         <h3>Preparation</h3>${md(m.preparation)}
-        ${linked.length ? `<h3>Linked tasks</h3><div class="linked">${linked.sort(byPriorityThenDue).map(t => taskCard(t, { badge: true })).join("")}</div>` : ""}
+        ${linked.length ? `<h3>Linked tasks</h3><div class="linked">${linked.sort(byPriorityThenDue).map(t => taskCard(t)).join("")}</div>` : ""}
       </div>
     </details>`;
 }
@@ -403,7 +581,7 @@ function renderCritical() {
 function renderWeek() {
   const key = state.week;
   const isCurrent = key === thisWeek, isPast = key < thisWeek;
-  $("week-title").textContent = `Week ${weekNum(key)}${isCurrent ? " · this week" : ""}`;
+  $("week-title").textContent = `Week ${weekNum(key)}${isCurrent ? " · this week" : key === nextWeek ? " · next week" : ""}`;
   $("week-range").textContent = weekRange(key);
   $("week-today").hidden = isCurrent;
 
@@ -434,7 +612,7 @@ function renderWeek() {
   const unscheduledHtml = unscheduled.length ? `
     <details class="group unscheduled">
       <summary>${plural(unscheduled.length, "open task")} not planned for any week</summary>
-      ${unscheduled.sort(byPriorityThenDue).map(t => taskCard(t, { badge: true })).join("")}
+      ${unscheduled.sort(byPriorityThenDue).map(t => taskCard(t)).join("")}
     </details>` : "";
 
   board.innerHTML = (html || `<p class="empty">Nothing ${isPast ? "was" : "is"} planned for week ${weekNum(key)}.</p>`) + unscheduledHtml;
@@ -444,7 +622,8 @@ function render() {
   const openIds = new Set([...board.querySelectorAll("details[data-id][open]")].map(d => d.dataset.id));
   const unscheduledOpen = board.querySelector(".unscheduled")?.open;
   document.querySelectorAll(".tabs a").forEach(a => {
-    if (a.dataset.view === state.view) a.setAttribute("aria-current", "page");
+    const weekTab = a.dataset.view === "week" ? (state.week === nextWeek) === ("next" in a.dataset) : true;
+    if (a.dataset.view === state.view && weekTab) a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
   });
   document.querySelector("[data-filter='status']").hidden = state.view !== "all";
@@ -481,6 +660,8 @@ $("week-prev").onclick = () => goWeek(shiftWeek(state.week, -1));
 $("week-next").onclick = () => goWeek(shiftWeek(state.week, 1));
 $("week-today").onclick = () => goWeek(thisWeek);
 $("week-tab").textContent = `Week ${weekNum(thisWeek)}`;
+$("next-week-tab").textContent = `Next · Week ${weekNum(nextWeek)}`;
+$("next-week-tab").href = `#week/${nextWeek}`;
 
 document.querySelectorAll(".seg").forEach(seg => {
   seg.addEventListener("click", e => {

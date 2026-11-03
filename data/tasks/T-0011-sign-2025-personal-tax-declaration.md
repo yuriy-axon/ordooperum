@@ -6,14 +6,14 @@ project: taxes
 priority: P1
 status: new
 due: 2026-10-31
-week: 2026-W43
+week: 2026-W45
 pinned: true
-weeks: [2026-W43]
+weeks: [2026-W43, 2026-W44, 2026-W45]
 repeat: null
 repeat_until: null
 series: null
 created: 2026-10-15T17:18:06+02:00
-updated: 2026-10-18T20:11:26+02:00
+updated: 2026-11-02T09:52:19+01:00
 closed: null
 source: text
 ---

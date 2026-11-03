@@ -122,14 +122,30 @@ Renew the car insurance before it expires at the end of October. Compare at leas
 | `closed` | ISO 8601 timestamp when the status became `done` or `cancelled`; `null` while open |
 | `source` | `text` or `audio` |
 
-Body sections, all required, in this order:
+Body sections in this order; all are required except Links and Comments:
 
-- **Description** — polished English: what to do, why, who is involved, what "done" looks like.
+- **Description** — polished English: what to do, why, who is involved, what "done" looks like. The user can also edit it in the web app (via `scripts/describe_task.py`); that text is kept as written.
 - **Additional information** — bullets, each starting with its kind. `None.` if empty.
   - `Project:` — from the project's Context.
   - `Place:` — where to go or whom to contact: name, address, opening hours, phone or booking link. Source link and retrieval date.
   - `Price:` — what it costs: amount in the profile currency (and the original currency if different), from where. Source link and retrieval date.
   - `Research:` — any other fact from the internet, with source link and retrieval date.
+- **Links** — optional; only present once the task has a link. Web addresses the user attached to the task (from the web app or `/task`), one `- https://…` bullet each, oldest first, no duplicates. Added and removed only with `scripts/link_task.py`; the web app shows each as a short link with the site's icon.
+
+  ```markdown
+  ## Links
+
+  - https://docs.google.com/document/d/1loqJYLoNcgM4bnqVsyHOoCv3MJ9ESKW4ujVDTqwAdEQ/edit
+  ```
+- **Comments** — optional; only present once the task has a comment. Notes added over time (from the web app or `/task`), oldest first, each a `### YYYY-MM-DD HH:MM` header (local time) followed by the text as written. Added only with `scripts/comment_task.py`; never rewritten, and not part of Original input.
+
+  ```markdown
+  ## Comments
+
+  ### 2026-10-26 10:31
+
+  Called the bank; they need the new contract first.
+  ```
 - **Original input** — the user's words, verbatim, as a quote. When a task is updated from a later input, the new fragment is appended.
 
 ## Weekly tasks
@@ -137,7 +153,7 @@ Body sections, all required, in this order:
 A recurring task is a **series** with a separate **instance** for every week, so each week can have its own content, status and notes.
 
 - **Series**: a task with `repeat: weekly` and `repeat_until` (one year after creation unless the user says otherwise). It holds the general description and the default priority. It is never planned or done itself: `week: null`, `pinned: false`, `weeks: []`, `due: null`, `series: null`. It stays `new` while it repeats; it becomes `done` after `repeat_until`, or `cancelled` when the user ends it.
-- **Instance**: a task with `series` set to the series' ID, `repeat: null`, `week` set to its week, `weeks: [<that week>]` and `pinned: true`. Title: the series title plus the week, e.g. `Learn Italian · Week 43`; file name `T-NNNN-<series-slug>-<year>-w<week>.md`. There is at most one instance per series and week. An instance's week never changes: it is **never carried over or moved**, because the next week has its own instance. An instance not finished in its week stays in that week as not done. Its Description starts with the series' description; the user adds that week's content to it. Original input is `> Created from weekly series T-NNNN for YYYY-Www.` plus anything the user later says about that week.
+- **Instance**: a task with `series` set to the series' ID, `repeat: null`, `week` set to its week, `weeks: [<that week>]` and `pinned: true`. Title: the series title plus the week, e.g. `Learn Italian · Week 43`; file name `T-NNNN-<series-slug>-<year>-w<week>.md`. There is at most one instance per series and week. An instance's week never changes: it is **never carried over or moved**, because the next week has its own instance. When `/plan` runs, every open instance whose week is before the planning week is closed as `done` automatically (it stays in its own week), because the newer weeks have their own instances. Its Description starts with the series' description; the user adds that week's content to it. Original input is `> Created from weekly series T-NNNN for YYYY-Www.` plus anything the user later says about that week.
 - Instances are created by `scripts/weekly.py` — one week at a time by `/plan` for the planning week, or on request for a given week (e.g. when the user adds content for a future week). Once created, an instance can be started, done, cancelled or reopened, and its priority, due date and content can change — but not its week.
 
 ## Status
@@ -153,20 +169,22 @@ A recurring task is a **series** with a separate **instance** for every week, so
 
 Used by the week view and by planning agents:
 
-1. A closed task belongs to the week of its `closed` date.
+1. A closed task belongs to the week of its `closed` date — except a weekly instance, which always belongs to its own `week`.
 2. An open task belongs to its `week`; if that is `null`, to the week of its `due` date; if both are `null`, it is unscheduled.
 3. An open task whose week is already over is carried over into the current week (and `/plan` moves it forward) — except a weekly instance, which always stays in its own week.
 
 ## Meetings
 
-A meeting plan, and after the meeting its protocol, made by `/ordo`. A meeting is identified by its **date** and **name** (plus **time** when two meetings with the same name fall on one day): the plan, the notes and every later input for that date and name go into the same file. Date and name are always required.
+A meeting plan, and after the meeting its protocol, made by `/ordo`. A meeting is identified by its **date** and **series name** (plus **time** when two meetings with the same series name fall on one day): the plan, the notes and every later input for that date and name go into the same file. Date and name are always required.
 
-File: `data/meetings/<date>-<name-slug>.md`, e.g. `2026-10-09-sales-weekly.md`; only when another meeting with the same name is on the same day, `<date>-<HHMM>-<name-slug>.md`, e.g. `2026-10-09-1430-sales-weekly.md`. `id` is the file name without `.md`. `name-slug` is the name in lowercase with every run of other characters replaced by `-`.
+File: `data/meetings/<date>-<name-slug>.md`, e.g. `2026-10-09-sales-weekly.md`; only when another meeting with the same series name is on the same day, `<date>-<HHMM>-<name-slug>.md`, e.g. `2026-10-09-1430-sales-weekly.md`. `id` is the file name without `.md`. `name-slug` is the series name (the name without its week suffix) in lowercase with every run of other characters replaced by `-`, so the week number never appears in the file name.
+
+**Weekly meetings**: a meeting that repeats every week — the user says so, or its series name contains "weekly" — has the ISO week of its `date` at the end of its name: `<series name> · Week <n>`, e.g. `Sales weekly · Week 41` (no leading zero). Other meetings have no week suffix.
 
 ```markdown
 ---
 id: 2026-10-09-sales-weekly
-name: Sales weekly
+name: Sales weekly · Week 41
 title: Q4 pipeline review with the sales team
 audience: Sales team
 date: 2026-10-09
@@ -205,7 +223,7 @@ None yet.
 
 | Field | Values |
 |-------|--------|
-| `name` | Short meeting name from the user, e.g. `Sales weekly`, `Management sync`. Stays the same for every meeting of a series. Never invented |
+| `name` | Short meeting name from the user, e.g. `Sales weekly · Week 41`, `Management sync`. The series name (the name without its week suffix) stays the same for every meeting of a series. A weekly meeting ends with ` · Week <n>`, the ISO week of `date` (see Weekly meetings above). Never invented |
 | `title` | ≤ 80 characters — this meeting's topic |
 | `audience` | Who attends, as the user describes it (e.g. `Sales team`, `Management team`) |
 | `date` | `YYYY-MM-DD` — required |
@@ -213,11 +231,11 @@ None yet.
 | `duration` | Minutes, or `null` if unknown |
 | `tier` | `business` or `personal` |
 | `project` | ID of an existing project, or `null` if the meeting isn't tied to one |
-| `tasks` | IDs of the tasks this meeting refers to, e.g. `[T-0002, T-0006]`; `[]` if none. Every `T-NNNN` written in Goal, Agenda, Preparation or Protocol must be listed here, and every listed task must exist. The web app shows the link on both the meeting and the task |
+| `tasks` | IDs of the tasks this meeting refers to, e.g. `[T-0002, T-0006]`; `[]` if none. Tasks are linked only from the Protocol: Goal, Agenda and Preparation never mention a `T-NNNN`. Every `T-NNNN` written in the Protocol must be listed here, and every listed task must exist. The web app shows the link on both the meeting and the task |
 | `status` | `planned`, `done` or `cancelled` |
 | `created`, `updated` | ISO 8601 timestamps with time zone |
 
-Agenda items are `### <n>. <title> — <priority>`, in discussion order: just the talking point's name and priority, nothing under the heading. (`· <minutes> min` after the priority, and text under the heading, are still accepted for older meetings.) Agenda priorities:
+Agenda items are `### <n>. <title> — <priority>`, in discussion order: just the talking point's name and priority — no minutes, and nothing under the heading. **Preparation** holds only concrete things to do or check before the meeting for the points on the agenda. Agenda priorities:
 
 | Value | Meaning |
 |-------|---------|

@@ -4,16 +4,16 @@ title: Send the F24 payment receipt to the sender
 tier: personal
 project: taxes
 priority: P1
-status: new
+status: in-progress
 due: 2026-10-20
-week: null
-pinned: false
-weeks: []
+week: 2026-W45
+pinned: true
+weeks: [2026-W44, 2026-W45]
 repeat: null
 repeat_until: null
 series: null
 created: 2026-10-20T20:52:07+02:00
-updated: 2026-10-20T20:52:07+02:00
+updated: 2026-11-02T09:52:19+01:00
 closed: null
 source: text
 ---
@@ -25,6 +25,12 @@ Send the payment receipt (quietanza) for the F24 from T-0017 Pay the overdue F24
 ## Additional information
 
 - Research: When an F24 is paid through home banking or the bank's app, the receipt is available immediately in the banking service. — [source](https://quifinanza.it/tasse/come-pagare-modello-f24-online/284968/), 2026-10-20
+
+## Comments
+
+### 2026-10-26 14:36
+
+stil on avlible on Unicredit website
 
 ## Original input
 
